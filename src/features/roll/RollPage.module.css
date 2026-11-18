@@ -107,3 +107,7 @@
 
 .who { color: inherit; text-decoration: none; }
 .who:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+
+.soundToggle { margin-inline-start: var(--space-sm); padding: 0.25rem 0.6rem; border: 0; border-radius: var(--radius-pill); cursor: pointer; font: 600 var(--text-xs)/1 var(--font-body); color: var(--color-muted); background: var(--color-paper-2); }
+.soundToggle[aria-pressed='true'] { color: var(--color-ink); }
+.soundToggle:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }

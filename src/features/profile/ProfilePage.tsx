@@ -3,7 +3,8 @@ import { CardView } from '@/ui/CardView';
 import { COLLECTION, ME } from '@/design/sample';
 import { formatOdds } from '@/lib/format';
 import { IconUpload } from '@/ui/icons';
-import { isLive, playerChip, useClaimLevel, useLevel, useMyProfile, useUpdateProfile } from '@/data/live';
+import { isLive, playerChip, useClaimLevel, useCollection, useLevel, useMyProfile, useUpdateProfile } from '@/data/live';
+import { SHOWCASE_MAX, toggleShowcase } from '@/lib/showcase';
 import { Avatar } from '@/ui/Avatar';
 import { levelProgress } from '@/lib/level';
 import { formatCoins } from '@/lib/format';
@@ -56,6 +57,63 @@ function EditForm({ nickname, bio, onDone }: { nickname: string; bio: string; on
   );
 }
 
+/** Pick up to 3 owned cards for the profile showcase. Rarest first, so the good ones are easy to find. */
+function ShowcasePicker({ current, onDone }: { current: string[]; onDone: () => void }) {
+  const collection = useCollection();
+  const save = useUpdateProfile();
+  const [picked, setPicked] = useState<string[]>(current);
+  const owned = (isLive ? collection.data ?? [] : COLLECTION).filter((e) => e.owned).sort((a, b) => b.card.odds_n - a.card.odds_n);
+  function submit() {
+    if (!isLive) return onDone();
+    save.mutate({ showcase: picked }, { onSuccess: onDone });
+  }
+  return (
+    <div className={`panel ${s.picker}`}>
+      <div className={s.pickerHead}>
+        <p className={s.pickerTitle}>
+          Escolha até {SHOWCASE_MAX} cartas <span className={s.pickerCount}>{picked.length} de {SHOWCASE_MAX}</span>
+        </p>
+        <div className={s.editActions}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onDone}>
+            Cancelar
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" disabled={save.isPending} onClick={submit}>
+            {save.isPending ? 'Salvando…' : 'Salvar vitrine'}
+          </button>
+        </div>
+      </div>
+      {save.isError && <p role="alert" className={s.error}>Não deu para salvar a vitrine. Tente de novo.</p>}
+      {isLive && collection.isLoading ? (
+        <p className="hint">Abrindo o álbum…</p>
+      ) : owned.length === 0 ? (
+        <p className="page-sub">Você ainda não tem cartas. Vá roletar!</p>
+      ) : (
+        <ul className={s.pickGrid}>
+          {owned.map((e) => {
+            const at = picked.indexOf(e.card.id);
+            const full = at < 0 && picked.length >= SHOWCASE_MAX;
+            return (
+              <li key={e.card.id}>
+                <button
+                  type="button"
+                  className={s.pick}
+                  aria-pressed={at >= 0}
+                  disabled={full}
+                  onClick={() => setPicked((cur) => toggleShowcase(cur, e.card.id))}
+                  aria-label={`${'title' in e.card ? e.card.title : 'Carta'}${at >= 0 ? `, posição ${at + 1} na vitrine` : ''}`}
+                >
+                  <CardView entry={e} size="s" />
+                  {at >= 0 && <span className={s.pickBadge}>{at + 1}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 const XP_WAYS = ['Roletar: +10', 'Carta nova: +25', 'Jogo terminado: +15', 'Giro no caça-níquel: +5', 'Bônus diário: +20'];
 
 /** Account level: progress bar, XP and the coins waiting for each new level. */
@@ -96,6 +154,7 @@ function LevelPanel() {
 
 export function ProfilePage() {
   const [editing, setEditing] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
   const update = useUpdateProfile();
   function pickBanner(file: File | undefined) {
@@ -124,7 +183,7 @@ export function ProfilePage() {
     ? { pulls: p?.stats.pulls ?? 0, pct: p?.stats.collection_pct ?? 0, rarest: p?.stats.rarest_odds ?? null }
     : { pulls: 1240, pct: 61, rarest: 400_000_000 };
   const showcase: CollectionEntry[] = isLive
-    ? (p?.profile.showcase ?? []).map((c) => ({ owned: true, quantity: 1, card: { id: c.id, odds_n: Number(c.odds_n), active: c.active, title: c.title ?? '', joke: c.joke ?? '', image_url: (c as { image_url?: string | null }).image_url ?? null } }))
+    ? (p?.profile.showcase ?? []).map((c) => ({ owned: true, quantity: 1, card: { id: c.id, number: c.number, odds_n: Number(c.odds_n), active: c.active, title: c.title ?? '', joke: c.joke ?? '', image_url: (c as { image_url?: string | null }).image_url ?? null } }))
     : SHOWCASE;
   const titles = isLive
     ? (p?.titles ?? []).map((t) => ({ id: t.id, name: t.name }))
@@ -202,13 +261,24 @@ export function ProfilePage() {
       </div>
 
       <section className={s.section}>
-        <h2 className="section-title">Vitrine</h2>
-        <div className={s.showcase}>
-          {showcase.length === 0 && <p className="page-sub">Escolha até 3 figurinhas para mostrar aqui.</p>}
-          {showcase.map((e) => (
-            <CardView key={e.card.id} entry={e} size="m" />
-          ))}
+        <div className={s.sectionHead}>
+          <h2 className="section-title">Vitrine</h2>
+          {!picking && (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPicking(true)}>
+              {showcase.length ? 'Trocar cartas' : 'Escolher cartas'}
+            </button>
+          )}
         </div>
+        {picking ? (
+          <ShowcasePicker current={showcase.map((e) => e.card.id)} onDone={() => setPicking(false)} />
+        ) : (
+          <div className={s.showcase}>
+            {showcase.length === 0 && <p className="page-sub">Escolha até 3 figurinhas para mostrar aqui. Todo mundo vê no seu perfil.</p>}
+            {showcase.map((e) => (
+              <CardView key={e.card.id} entry={e} size="m" />
+            ))}
+          </div>
+        )}
       </section>
 
       <section className={s.section}>

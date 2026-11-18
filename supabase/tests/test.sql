@@ -300,6 +300,103 @@ select t.err(format('select public.admin_set_coins(%L, 10, %L)', '00000000-0000-
 reset role;
 select t.ok((select count(*) from public.coin_transactions where user_id = :bia and reason = 'admin: premio do teste') = 1, 'mudanca de saldo fica no historico');
 
+-- ------------------------------------------------------------ gifts, trades, challenges, missions, weekly event
+reset role;
+select id as c_a from public.cards where active order by odds_n asc limit 1 \gset
+select id as c_b from public.cards where active order by odds_n desc limit 1 \gset
+delete from public.inventory where (user_id = :bia and card_id = :'c_a') or (user_id = :duda and card_id = :'c_b');
+insert into public.inventory (user_id, card_id, quantity) values (:duda, :'c_a', 3), (:bia, :'c_b', 2)
+  on conflict (user_id, card_id) do update set quantity = excluded.quantity;
+update public.profiles set coins = 1000 where id in (:duda, :bia);
+-- the admin tests deleted a card (and its rolls); give duda today's rolls back for the mission tests
+insert into public.pulls (user_id, card_id, odds_n_at_pull, luck_used) select :duda, :'c_a', 10, 1 from generate_series(1, 5);
+
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.err(format('select public.gift_card(%L, %L)', :ana, :'c_a'), 'forbidden', 'so presenteia amigo');
+select t.ok((public.gift_card(:bia, :'c_a')->>'quantity_left')::int = 2, 'presente tira uma copia de quem deu');
+select t.err(format('select public.gift_card(%L, %L)', :bia, :'c_b'), 'invalid', 'nao presenteia carta que nao tem repetida');
+select (public.propose_trade(:bia, :'c_a', :'c_b')->>'id') as trade1 \gset
+select t.ok(:'trade1' is not null, 'proposta de troca criada');
+select t.err(format('select public.propose_trade(%L, %L, %L)', :bia, :'c_b', :'c_a'), 'invalid', 'nao oferece carta que nao tem repetida');
+select t.ok(jsonb_array_length(public.get_trades()->'outgoing') = 1, 'troca aparece em enviadas');
+reset role;
+
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(exists (select 1 from jsonb_array_elements(public.get_collection()) e where e->'card'->>'id' = :'c_a' and (e->>'quantity')::int = 1), 'presente chega na colecao do amigo');
+select t.ok(jsonb_array_length(public.get_gifts()) = 1, 'amigo ve o presente recebido');
+select t.ok(jsonb_array_length(public.get_trades()->'incoming') = 1, 'troca chega para o amigo');
+select t.ok(public.respond_trade(:'trade1', true)->>'status' = 'accepted', 'troca aceita');
+select t.ok(exists (select 1 from jsonb_array_elements(public.get_collection()) e where e->'card'->>'id' = :'c_a' and (e->>'quantity')::int = 2)
+        and exists (select 1 from jsonb_array_elements(public.get_collection()) e where e->'card'->>'id' = :'c_b' and (e->>'quantity')::int = 1), 'cartas trocam de dono');
+select t.err(format('select public.respond_trade(%L, true)', :'trade1'), 'not_found', 'troca nao e aceita duas vezes');
+select (public.propose_trade(:duda, :'c_a', :'c_b')->>'id') as trade2 \gset
+reset role;
+
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok(exists (select 1 from jsonb_array_elements(public.get_collection()) e where e->'card'->>'id' = :'c_b' and (e->>'quantity')::int = 1), 'quem propos recebe a carta pedida');
+select t.err(format('select public.respond_trade(%L, true)', :'trade2'), 'invalid', 'nao troca a ultima copia');
+select t.ok(public.respond_trade(:'trade2', false)->>'status' = 'declined', 'troca recusada');
+select t.err(format('select public.gift_card(%L, %L)', :bia, :'c_a'), 'invalid', 'nao presenteia a ultima copia');
+select t.err(format('select public.create_challenge(%L, 5)', :bia), 'invalid', 'aposta minima de 10');
+select t.err(format('select public.create_challenge(%L, 5000)', :bia), 'insufficient_coins', 'nao aposta mais do que tem');
+select t.err(format('select public.create_challenge(%L, 50)', :ana), 'forbidden', 'so desafia amigo');
+select (public.create_challenge(:bia, 100)->>'id') as ch1 \gset
+select t.ok((select coins from public.profiles) = 900, 'aposta sai na hora de desafiar');
+select (public.create_challenge(:bia, 50)->>'id') as ch2 \gset
+select t.ok(public.cancel_challenge(:'ch2')->>'status' = 'cancelled', 'desafio cancelado');
+select t.ok((select coins from public.profiles) = 900, 'cancelar devolve a aposta');
+select (public.create_challenge(:bia, 30)->>'id') as ch3 \gset
+reset role;
+
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(jsonb_array_length(public.get_challenges()->'incoming') = 2, 'desafios chegam para o amigo');
+select public.respond_challenge(:'ch3', false);
+select public.respond_challenge(:'ch1', true) as duel \gset
+select t.ok((:'duel'::jsonb)->>'status' = 'done', 'desafio aceito roda na hora');
+select t.ok(jsonb_array_length((:'duel'::jsonb)->'draws_from') = 5 and jsonb_array_length((:'duel'::jsonb)->'draws_to') = 5, 'cada um faz 5 tiragens');
+select t.err(format('select public.respond_challenge(%L, true)', :'ch1'), 'not_found', 'desafio nao roda duas vezes');
+reset role;
+select t.ok((select sum(coins) from public.profiles where id in (:duda, :bia)) = 2000, 'moedas do desafio nao somem nem aparecem');
+select t.ok((select count(*) from public.coin_transactions where user_id = :duda and reason = 'desafio devolvido') = 2, 'cancelar e recusar devolvem a aposta de quem desafiou');
+
+-- missions: the admin may pin today's missions; otherwise 3 come from the day
+update public.settings set value = jsonb_set(value, '{missions}', '["daily_bonus", "roll_5", "gift_1"]');
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok(jsonb_array_length(public.get_missions()) = 3, 'tres missoes por dia');
+select t.ok((select bool_and((m->>'progress')::int >= (m->>'goal')::int) from jsonb_array_elements(public.get_missions()) m), 'progresso vem do que o jogador fez hoje');
+select (public.get_level()->>'xp')::bigint as xp_before \gset
+select t.ok((public.claim_mission('daily_bonus')->>'coins_after')::bigint > 0, 'missao completa paga');
+select t.ok((public.get_level()->>'xp')::bigint = :xp_before + 30, 'missao da 30 de xp');
+select t.err($$select public.claim_mission('daily_bonus')$$, 'already_claimed', 'missao nao paga duas vezes');
+select t.err($$select public.claim_mission('reflex_win')$$, 'invalid', 'missao de outro dia nao paga');
+reset role;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err($$select public.claim_mission('roll_5')$$, 'invalid', 'missao incompleta nao paga');
+reset role;
+update public.settings set value = value - 'missions';
+select t.ok((select count(distinct m) from (select jsonb_array_elements_text(app.missions_for(app.today())) m) x) = 3, 'sem fixar, o dia escolhe 3 missoes diferentes');
+
+-- weekly event: one card gets double chance
+select t.ok(exists (select 1 from public.cards where id = app.event_card() and active and odds_n >= 100), 'evento escolhe uma carta ativa nao comum');
+update public.settings set value = jsonb_set(value, '{event_card}', to_jsonb(:'c_b'::text));
+select t.ok(app.event_card() = :'c_b', 'admin pode fixar a carta do evento');
+select t.ok(app.card_chance(:'c_b', 1000, 1) = 2 * app.card_chance(:'c_a', 1000, 1), 'carta do evento tem chance dobrada');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(public.get_event()->'card'->>'id' = :'c_b' and (public.get_event()->>'multiplier')::int = 2, 'jogador ve o evento da semana');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok((public.get_event()->'card') ? 'joke', 'evento mostra a piada para quem tem a carta');
+reset role;
+update public.settings set value = value - 'event_card';
+
 -- ------------------------------------------------------------ randomness
 select t.ok((select min(x) >= 0 and max(x) < 1 and abs(avg(x) - 0.5) < 0.02 from (select app.rand() x from generate_series(1, 20000)) r),
             'app.rand uniforme em [0,1)');

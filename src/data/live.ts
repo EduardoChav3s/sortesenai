@@ -1,7 +1,7 @@
 // React Query hooks over the real database. In demo mode (no Supabase keys) they stay idle
 // and pages keep showing the sample data from src/design/sample.ts.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, fetchWallet, removeImage, uploadImage } from './client';
+import { api, copyIdeaPhotoToCards, fetchWallet, removeImage, uploadImage } from './client';
 import { rollMany } from './api';
 import type { FeedEvent } from './types';
 
@@ -25,7 +25,7 @@ export function usePull() {
   return useMutation({
     mutationFn: () => api!.pull(),
     onSuccess: () => {
-      for (const key of ['wallet', 'luck', 'collection', 'feed', 'level']) qc.invalidateQueries({ queryKey: [key] });
+      for (const key of ['wallet', 'luck', 'collection', 'feed', 'level', 'missions']) qc.invalidateQueries({ queryKey: [key] });
     },
   });
 }
@@ -36,7 +36,7 @@ export function usePullMany() {
   return useMutation({
     mutationFn: (n: number) => rollMany(() => api!.pull(), n),
     onSettled: () => {
-      for (const key of ['wallet', 'luck', 'collection', 'feed', 'level']) qc.invalidateQueries({ queryKey: [key] });
+      for (const key of ['wallet', 'luck', 'collection', 'feed', 'level', 'missions']) qc.invalidateQueries({ queryKey: [key] });
     },
   });
 }
@@ -51,6 +51,7 @@ export function useClaimDaily() {
       qc.invalidateQueries({ queryKey: ['wallet'] });
       qc.invalidateQueries({ queryKey: ['daily'] });
       qc.invalidateQueries({ queryKey: ['level'] });
+      qc.invalidateQueries({ queryKey: ['missions'] });
     },
   });
 }
@@ -107,6 +108,8 @@ export const useGameLimits = () => useQuery({ queryKey: ['limits'], queryFn: () 
 export const useMySuggestions = () => useQuery({ queryKey: ['suggestions'], queryFn: fetchMySuggestions, enabled: isLive });
 export const useRole = () => useQuery({ queryKey: ['role'], queryFn: fetchRole, enabled: isLive });
 export const useAdminCards = () => useQuery({ queryKey: ['admin-cards'], queryFn: () => api!.adminListCards(), enabled: isLive });
+export const useAdminSuggestions = (status: 'pending' | 'approved' | 'rejected') =>
+  useQuery({ queryKey: ['admin-suggestions', status], queryFn: () => api!.adminListSuggestions(status), enabled: isLive });
 export const useAdminPlayers = () => useQuery({ queryKey: ['admin-players'], queryFn: () => api!.adminListPlayers(), enabled: isLive });
 export const useAllowedEmails = () => useQuery({ queryKey: ['emails'], queryFn: fetchAllowedEmails, enabled: isLive });
 
@@ -134,7 +137,7 @@ export function useCreateSuggestion() {
 export function useUpdateProfile() {
   const inv = useInvalidate();
   return useMutation({
-    mutationFn: async (v: { nickname?: string; bio?: string; title_id?: string | null; banner?: File; photo?: File }) => {
+    mutationFn: async (v: { nickname?: string; bio?: string; title_id?: string | null; showcase?: string[]; banner?: File; photo?: File }) => {
       const { banner, photo, ...rest } = v;
       const p: Record<string, unknown> = { ...rest };
       if (banner) p.banner_url = await uploadImage('profile', banner);
@@ -148,7 +151,7 @@ export function useUpdateProfile() {
 /** Coins changed by a minigame: refresh the balance and the daily limits. */
 export function useGameDone() {
   const inv = useInvalidate();
-  return () => inv('wallet', 'limits', 'level');
+  return () => inv('wallet', 'limits', 'level', 'missions');
 }
 export function useAdminActions() {
   const inv = useInvalidate();
@@ -175,6 +178,26 @@ export function useAdminActions() {
         return r;
       },
       onSettled: () => inv('admin-cards', 'collection', 'feed', 'ranking', 'level', 'profile'),
+    }),
+    approveIdea: useMutation({
+      mutationFn: async (v: { id: string; title: string; joke: string; odds_n: number; image_path: string | null; usePhoto: boolean }) => {
+        const card = await api!.adminApproveSuggestion(v.id, v.title, v.joke, v.odds_n);
+        // The idea's photo lives in the suggestions bucket; the card needs its own copy in the cards bucket.
+        const image_path = v.usePhoto && v.image_path ? await copyIdeaPhotoToCards(v.image_path).catch(() => null) : null;
+        if (image_path || card.image_path) {
+          await api!.adminUpsertCard({ id: card.id, title: v.title, joke: v.joke, odds_n: v.odds_n, image_path: image_path ?? '' });
+        }
+        return { card, photoCopied: !!image_path };
+      },
+      onSettled: () => inv('admin-suggestions', 'admin-cards', 'collection'),
+    }),
+    rejectIdea: useMutation({
+      mutationFn: (v: { id: string; note: string }) => api!.adminRejectSuggestion(v.id, v.note),
+      onSettled: () => inv('admin-suggestions'),
+    }),
+    setBanned: useMutation({
+      mutationFn: (v: { id: string; banned: boolean }) => api!.adminSetBanned(v.id, v.banned),
+      onSettled: () => inv('admin-players', 'ranking', 'friends', 'players'),
     }),
     setCoins: useMutation({
       mutationFn: (v: { id: string; coins: number; reason: string }) => api!.adminSetCoins(v.id, v.coins, v.reason),
@@ -215,7 +238,7 @@ export function useRecycle() {
       for (const it of list) gained += Number((await api!.recycle(it.id, it.quantity)).gained);
       return { gained };
     },
-    onSettled: () => inv('wallet', 'collection', 'ranking', 'profile', 'level'),
+    onSettled: () => inv('wallet', 'collection', 'ranking', 'profile', 'level', 'missions'),
   });
 }
 
@@ -236,4 +259,31 @@ export function useFriendActions() {
     respond: useMutation({ mutationFn: (v: { id: string; accept: boolean }) => api!.respondFriend(v.id, v.accept), onSettled: done }),
     remove: useMutation({ mutationFn: (id: string) => api!.removeFriend(id), onSettled: done }),
   };
+}
+
+// ---------------------------------------------------------------- gifts, trades, duels, missions, weekly event
+export const useGifts = () => useQuery({ queryKey: ['gifts'], queryFn: () => api!.gifts(), enabled: isLive, refetchInterval: 30_000 });
+export const useTrades = () => useQuery({ queryKey: ['trades'], queryFn: () => api!.trades(), enabled: isLive, refetchInterval: 30_000 });
+export const useChallenges = () => useQuery({ queryKey: ['challenges'], queryFn: () => api!.challenges(), enabled: isLive, refetchInterval: 30_000 });
+export const useMissions = () => useQuery({ queryKey: ['missions'], queryFn: () => api!.missions(), enabled: isLive });
+export const useWeeklyEvent = () => useQuery({ queryKey: ['event'], queryFn: () => api!.weeklyEvent(), enabled: isLive, staleTime: 5 * 60_000 });
+
+export function useSocialActions() {
+  const inv = useInvalidate();
+  const cards = () => inv('collection', 'player-collection', 'trades', 'gifts', 'missions', 'level');
+  const duel = () => inv('challenges', 'wallet');
+  return {
+    gift: useMutation({ mutationFn: (v: { to: string; card: string }) => api!.giftCard(v.to, v.card), onSettled: cards }),
+    propose: useMutation({ mutationFn: (v: { to: string; give: string; want: string }) => api!.proposeTrade(v.to, v.give, v.want), onSettled: cards }),
+    respondTrade: useMutation({ mutationFn: (v: { id: string; accept: boolean }) => api!.respondTrade(v.id, v.accept), onSettled: cards }),
+    cancelTrade: useMutation({ mutationFn: (id: string) => api!.cancelTrade(id), onSettled: cards }),
+    challenge: useMutation({ mutationFn: (v: { to: string; bet: number }) => api!.createChallenge(v.to, v.bet), onSettled: duel }),
+    respondChallenge: useMutation({ mutationFn: (v: { id: string; accept: boolean }) => api!.respondChallenge(v.id, v.accept), onSettled: duel }),
+    cancelChallenge: useMutation({ mutationFn: (id: string) => api!.cancelChallenge(id), onSettled: duel }),
+  };
+}
+
+export function useClaimMission() {
+  const inv = useInvalidate();
+  return useMutation({ mutationFn: (id: string) => api!.claimMission(id), onSettled: () => inv('missions', 'wallet', 'level') });
 }

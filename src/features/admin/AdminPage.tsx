@@ -7,7 +7,8 @@ import { isApiError } from '@/data/errors';
 import { COLLECTION } from '@/design/sample';
 import { formatCoins, formatOdds } from '@/lib/format';
 import { rarityTier, TIER_LABEL } from '@/lib/rarity';
-import { isLive, playerChip, useAdminActions, useAdminCards, useAdminPlayers, useRole } from '@/data/live';
+import { isLive, playerChip, useAdminActions, useAdminCards, useAdminPlayers, useAdminSuggestions, useMyProfile, useRole } from '@/data/live';
+import { IdeasTab } from './IdeasTab';
 import type { AdminPlayer } from '@/data/api';
 import type { CardContent } from '@/data/types';
 import { coinChange, type CoinMode } from './coinChange';
@@ -18,7 +19,7 @@ const SAMPLE_PLAYERS: AdminPlayer[] = [
   { id: 'p1', nickname: 'duda', email: 'duda@exemplo.com', avatar_url: null, coins: 12_480, role: 'admin', banned: false, cards_owned: 31 },
   { id: 'p2', nickname: 'ana', email: 'ana@exemplo.com', avatar_url: null, coins: 4_120, role: 'player', banned: false, cards_owned: 12 },
 ];
-const TABS = ['Cartas', 'Jogadores'] as const;
+const TABS = ['Cartas', 'Ideias', 'Jogadores'] as const;
 type Tab = (typeof TABS)[number];
 
 /** Object url for a picked file, freed when it changes. */
@@ -306,7 +307,17 @@ function CoinsForm({ player, onDone }: { player: AdminPlayer; onDone: (msg: stri
 
 function PlayersTab() {
   const live = useAdminPlayers();
+  const me = useMyProfile();
+  const { setBanned } = useAdminActions();
   const [open, setOpen] = useState<string | null>(null);
+  const [banAsk, setBanAsk] = useState<string | null>(null);
+  function toggleBan(p: AdminPlayer) {
+    if (!isLive) return setBanAsk(null);
+    setBanned.mutate(
+      { id: p.id, banned: !p.banned },
+      { onSuccess: () => (setBanAsk(null), setNotice(p.banned ? `${p.nickname} voltou a jogar.` : `${p.nickname} foi suspenso e não entra mais no site.`)) },
+    );
+  }
   const [notice, setNotice] = useState<string | null>(null);
   const players = isLive ? (live.data ?? []) : SAMPLE_PLAYERS;
   return (
@@ -318,6 +329,7 @@ function PlayersTab() {
         </p>
       )}
       {isLive && live.isError && <p role="alert" className={s.error}>Não deu para carregar os jogadores.</p>}
+      {setBanned.isError && <p role="alert" className={s.error}>Não deu para mudar o acesso. Tente de novo.</p>}
       <div className={`panel ${s.tablePanel}`}>
         <table className="table">
           <thead>
@@ -339,7 +351,7 @@ function PlayersTab() {
               const chip = playerChip(p.id, p.nickname, p.avatar_url);
               return (
                 <Fragment key={p.id}>
-                  <tr data-open={open === p.id}>
+                  <tr data-open={open === p.id} data-asking={banAsk === p.id} data-banned={p.banned}>
                     <td>
                       <span className={s.cardCell}>
                         <Avatar initials={chip.initials} hue={chip.hue} size="32px" url={chip.avatar} />
@@ -356,10 +368,29 @@ function PlayersTab() {
                     <td className={`num ${s.odds}`}>{formatCoins(p.coins)}</td>
                     <td className="num">{p.cards_owned}</td>
                     <td className={s.actions}>
-                      {open !== p.id && (
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => (setNotice(null), setOpen(p.id))}>
-                          Moedas
-                        </button>
+                      {banAsk === p.id ? (
+                        <span className={s.confirm}>
+                          <span className={s.confirmText}>{p.banned ? 'Liberar o acesso de novo?' : 'Tira o acesso ao site. Suspender?'}</span>
+                          <button type="button" className={`btn ${p.banned ? 'btn-primary' : 'btn-danger'} btn-sm`} disabled={setBanned.isPending} onClick={() => toggleBan(p)}>
+                            {setBanned.isPending ? 'Salvando…' : p.banned ? 'Sim, reativar' : 'Sim, suspender'}
+                          </button>
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setBanAsk(null)}>
+                            Não
+                          </button>
+                        </span>
+                      ) : (
+                        open !== p.id && (
+                          <span className={s.rowButtons}>
+                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => (setNotice(null), setOpen(p.id))}>
+                              Moedas
+                            </button>
+                            {p.id !== me.data?.profile.id && (
+                              <button type="button" className={`btn btn-secondary btn-sm ${p.banned ? '' : s.dangerText}`} onClick={() => (setNotice(null), setOpen(null), setBanAsk(p.id))}>
+                                {p.banned ? 'Reativar' : 'Suspender'}
+                              </button>
+                            )}
+                          </span>
+                        )
                       )}
                     </td>
                   </tr>
@@ -389,6 +420,7 @@ function PlayersTab() {
 export function AdminPage() {
   const role = useRole();
   const [tab, setTab] = useState<Tab>('Cartas');
+  const newIdeas = useAdminSuggestions('pending').data?.length ?? 0;
   if (isLive && role.isLoading) return <p className="page-sub">Conferindo permissão…</p>;
   if (isLive && role.data !== 'admin')
     return (
@@ -403,10 +435,11 @@ export function AdminPage() {
         {TABS.map((t) => (
           <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)}>
             {t}
+            {t === 'Ideias' && newIdeas > 0 && <span className={s.tabCount}>{newIdeas}</span>}
           </button>
         ))}
       </div>
-      {tab === 'Cartas' ? <CardsTab /> : <PlayersTab />}
+      {tab === 'Cartas' ? <CardsTab /> : tab === 'Ideias' ? <IdeasTab /> : <PlayersTab />}
     </div>
   );
 }

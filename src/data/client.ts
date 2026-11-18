@@ -120,3 +120,12 @@ export async function fetchRole() {
 export async function removeImage(bucket: 'cards' | 'profile' | 'suggestions', path: string) {
   await supabase!.storage.from(bucket).remove([path]);
 }
+
+/** Copies an idea's photo into the cards bucket (admin only) and returns the new path. */
+export async function copyIdeaPhotoToCards(path: string): Promise<string> {
+  const ext = path.split('.').pop() ?? 'webp';
+  const to = `${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase!.storage.from('suggestions').copy(path, to, { destinationBucket: 'cards' });
+  if (error) throw new Error('Não deu para copiar a foto da ideia.');
+  return to;
+}

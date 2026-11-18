@@ -1,7 +1,9 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { CardView } from '@/ui/CardView';
 import { Avatar } from '@/ui/Avatar';
+import { Missions, RareBurst, WeeklyEventBanner, useRareEffect, useSound } from './Extras';
+import { rarityTier as tierOf } from '@/lib/rarity';
 import { IconClover, IconCoin } from '@/ui/icons';
 import { FEED, REEL, WALLET } from '@/design/sample';
 import { formatLuck, formatOdds } from '@/lib/format';
@@ -25,6 +27,30 @@ export function RollPage() {
   const [spin, setSpin] = useState(0);
   const [won, setWon] = useState<CollectionEntry | null>(null);
   const [batch, setBatch] = useState<CollectionEntry[]>([]);
+  const sound = useSound();
+  const { burst, celebrate } = useRareEffect(sound.on);
+  const [shake, setShake] = useState<string | null>(null);
+  const landTimer = useRef<number[]>([]);
+  useEffect(() => () => landTimer.current.forEach((t) => window.clearTimeout(t)), []);
+  // Dev only: /?festa=raro|epico|lendario|mitico previews the celebration without needing the luck.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const tier = new URLSearchParams(window.location.search).get('festa');
+    const odds = { raro: 10_000, epico: 1_000_000, lendario: 100_000_000, mitico: 1_000_000_000 }[tier ?? ''];
+    if (odds) land(odds);
+  }, []);
+  /** When the reel stops on a rare card: celebrate and shake the stage. */
+  function land(odds: number) {
+    landTimer.current.forEach((t) => window.clearTimeout(t));
+    landTimer.current = [
+      window.setTimeout(() => {
+        celebrate(odds);
+        const tier = tierOf(odds);
+        if (tier === 'raro' || tier === 'epico' || tier === 'lendario' || tier === 'mitico') setShake(tier);
+      }, 2200),
+      window.setTimeout(() => setShake(null), 5200),
+    ];
+  }
   const pull = usePull();
   const many = usePullMany();
   const luck = useLuck();
@@ -43,6 +69,7 @@ export function RollPage() {
       onSuccess: (r) => {
         setWon({ owned: true, quantity: r.quantity, card: r.card });
         setSpin((n) => n + 1);
+        land(r.card.odds_n);
       },
     });
   }
@@ -59,8 +86,10 @@ export function RollPage() {
         const got: CollectionEntry[] = results.map((r) => ({ owned: true, quantity: r.quantity, card: r.card }));
         setBatch(got);
         if (got.length === 0) return;
-        setWon([...got].sort((a, b) => b.card.odds_n - a.card.odds_n)[0]);
+        const top = [...got].sort((a, b) => b.card.odds_n - a.card.odds_n)[0];
+        setWon(top);
         setSpin((n) => n + 1);
+        land(top.card.odds_n);
       },
     });
   }
@@ -70,7 +99,9 @@ export function RollPage() {
 
   return (
     <div className={s.page}>
-      <section className={`panel ${s.stage}`} aria-label="Roleta">
+      {burst && <RareBurst key={burst.key} tier={burst.tier} />}
+      <WeeklyEventBanner />
+      <section className={`panel ${s.stage}`} aria-label="Roleta" data-shake={shake ?? undefined}>
         <div className={s.track}>
           <div
             key={spin}
@@ -112,6 +143,9 @@ export function RollPage() {
         <p className={s.luckLine}>
           <IconClover size={16} />
           {luckText}
+          <button type="button" className={s.soundToggle} aria-pressed={sound.on} onClick={sound.toggle}>
+            {sound.on ? 'Som ligado' : 'Som desligado'}
+          </button>
         </p>
         {batch.length > 0 && (
           <div className={s.batch}>
@@ -128,6 +162,8 @@ export function RollPage() {
           </div>
         )}
       </section>
+
+      <Missions />
 
       <section className={`panel ${s.mural}`} aria-labelledby="mural-title">
         <h2 id="mural-title" className={s.muralTitle}>

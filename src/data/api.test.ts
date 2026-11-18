@@ -219,3 +219,79 @@ test('admin card delete and coin changes call their RPCs with the right argument
     { fn: 'admin_list_players', args: undefined },
   ]);
 });
+
+test('admin ideas and bans call their RPCs with the right argument names', async () => {
+  const { rpc, calls } = fakeRpc({});
+  const a = createApi(rpc);
+  await a.adminListSuggestions('pending');
+  await a.adminApproveSuggestion('s1', 'Título', 'Piada', 500);
+  await a.adminRejectSuggestion('s2', 'repetida');
+  await a.adminSetBanned('u1', true);
+  expect(calls).toEqual([
+    { fn: 'admin_list_suggestions', args: { p_status: 'pending' } },
+    { fn: 'admin_approve_suggestion', args: { p_id: 's1', p_title: 'Título', p_joke: 'Piada', p_odds_n: 500 } },
+    { fn: 'admin_reject_suggestion', args: { p_id: 's2', p_note: 'repetida' } },
+    { fn: 'admin_set_banned', args: { p_user: 'u1', p_banned: true } },
+  ]);
+});
+
+test('an idea photo is signed from the suggestions bucket and the raw path is kept for copying', async () => {
+  const { rpc } = fakeRpc({
+    admin_list_suggestions: { data: [{ id: 's1', text: 'Uma ideia boa demais', image_path: 'u1/a.webp', status: 'pending', created_at: '2026-11-18T00:00:00Z', author: { id: 'u1', nickname: 'bia', avatar_url: null } }] },
+  });
+  const buckets: string[] = [];
+  const sign = async (b: string, paths: string[]) => (buckets.push(b), Object.fromEntries(paths.map((p) => [p, `https://${b}/${p}`])));
+  const [s] = await createApi(rpc, sign).adminListSuggestions('pending');
+  expect(s.image_url).toBe('https://suggestions/u1/a.webp');
+  expect(s.image_path).toBe('u1/a.webp');
+  expect(buckets).toContain('suggestions');
+});
+
+test('gifts, trades, challenges, missions and event call their RPCs with the right argument names', async () => {
+  const { rpc, calls } = fakeRpc({});
+  const a = createApi(rpc);
+  await a.giftCard('u2', 'c1');
+  await a.gifts();
+  await a.proposeTrade('u2', 'c1', 'c2');
+  await a.respondTrade('t1', true);
+  await a.cancelTrade('t1');
+  await a.trades();
+  await a.createChallenge('u2', 50);
+  await a.respondChallenge('h1', false);
+  await a.cancelChallenge('h1');
+  await a.challenges();
+  await a.missions();
+  await a.claimMission('roll_5');
+  await a.weeklyEvent();
+  expect(calls).toEqual([
+    { fn: 'gift_card', args: { p_to: 'u2', p_card: 'c1' } },
+    { fn: 'get_gifts', args: undefined },
+    { fn: 'propose_trade', args: { p_to: 'u2', p_give: 'c1', p_want: 'c2' } },
+    { fn: 'respond_trade', args: { p_trade: 't1', p_accept: true } },
+    { fn: 'cancel_trade', args: { p_trade: 't1' } },
+    { fn: 'get_trades', args: undefined },
+    { fn: 'create_challenge', args: { p_to: 'u2', p_bet: 50 } },
+    { fn: 'respond_challenge', args: { p_id: 'h1', p_accept: false } },
+    { fn: 'cancel_challenge', args: { p_id: 'h1' } },
+    { fn: 'get_challenges', args: undefined },
+    { fn: 'get_missions', args: undefined },
+    { fn: 'claim_mission', args: { p_id: 'roll_5' } },
+    { fn: 'get_event', args: undefined },
+  ]);
+});
+
+test('cards inside trades and duels stay locked unless the viewer owns them', async () => {
+  const player = { id: 'u2', nickname: 'bia', avatar_url: null };
+  const { rpc } = fakeRpc({
+    get_trades: { data: { incoming: [{ id: 't1', status: 'pending', created_at: 'x', from: player, to: player, give: dbCard, want: { id: 'c9', number: 9, odds_n: 50, active: true } }], outgoing: null } },
+    get_event: { data: { card: { id: 'c9', number: 9, odds_n: 5000, active: true }, multiplier: 2, starts_at: 'a', ends_at: 'b' } },
+  });
+  const api = createApi(rpc);
+  const t = await api.trades();
+  expect(t.incoming[0].give.known && t.incoming[0].give.card.title).toBe('O grampeador');
+  expect(t.incoming[0].want.known).toBe(false);
+  expect(t.outgoing).toEqual([]);
+  const ev = await api.weeklyEvent();
+  expect(ev?.card.known).toBe(false);
+  expect(ev?.card.card.odds_n).toBe(5000);
+});

@@ -64,6 +64,38 @@ export interface Friends {
   outgoing: FriendPlayer[];
 }
 
+/** A card as the viewer may see it: full when they own a copy, else only number and rarity. */
+export type SeenCard = { known: true; card: AlbumCard } | { known: false; card: AlbumCardLocked };
+type Who = PlayerSummary;
+export interface Gift { id: number; from: Who; card: SeenCard; created_at: string }
+export interface Trade { id: string; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; created_at: string; from: Who; to: Who; give: SeenCard; want: SeenCard }
+export interface Challenge {
+  id: string;
+  status: 'pending' | 'done' | 'declined' | 'cancelled';
+  bet: number;
+  created_at: string;
+  decided_at: string | null;
+  from: Who;
+  to: Who;
+  winner: string | null;
+  draws_from: SeenCard[];
+  draws_to: SeenCard[];
+}
+export interface Mission { id: string; title: string; goal: number; coins: number; xp: number; progress: number; claimed: boolean }
+export interface WeeklyEvent { card: SeenCard; multiplier: number; starts_at: string; ends_at: string }
+
+/** An idea sent by a player, as the admin sees it. image_path stays raw so the photo can be copied to the card. */
+export interface AdminSuggestion {
+  id: string;
+  text: string;
+  image_path: string | null;
+  image_url: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  admin_note: string | null;
+  created_at: string;
+  author: { id: string; nickname: string; avatar_url: string | null } | null;
+}
+
 /** A row of the admin player list (the admin sees every profile field). */
 export interface AdminPlayer {
   id: string;
@@ -93,6 +125,11 @@ export function createApi(rpc: Rpc, sign?: Sign) {
   const cardUrls = (cards: DbCard[]) => signPaths('cards', cards.map((c) => c.image_path));
   // Avatars are either a Google photo (full url, kept) or a file in the profile bucket (signed).
   const avatarUrl = (p: string | null | undefined, pics: Record<string, string>) => (p ? pics[p] ?? (/^https?:/.test(p) ? p : null) : null);
+  const isFull = (c: DbCard) => typeof c.title === 'string';
+  async function seen(cards: DbCard[]) {
+    const urls = await cardUrls(cards.filter(isFull));
+    return (c: DbCard): SeenCard => (isFull(c) ? { known: true, card: fullCard(c, urls) } : { known: false, card: lockedCard(c) });
+  }
   async function withAvatars<P extends { avatar_url: string | null }>(players: P[]): Promise<P[]> {
     const pics = await signPaths('profile', players.map((p) => p.avatar_url));
     return players.map((p) => ({ ...p, avatar_url: avatarUrl(p.avatar_url, pics) }));
@@ -203,6 +240,67 @@ export function createApi(rpc: Rpc, sign?: Sign) {
     },
     adminUpsertCard: (p: { id?: string; title: string; joke: string; odds_n: number; image_path?: string }) => call<object>('admin_upsert_card', { p }),
     adminSetCardActive: (id: string, active: boolean) => call<void>('admin_set_card_active', { p_card: id, p_active: active }),
+    async adminListSuggestions(status: 'pending' | 'approved' | 'rejected'): Promise<AdminSuggestion[]> {
+      const rows = (await call<AdminSuggestion[] | null>('admin_list_suggestions', { p_status: status })) ?? [];
+      const [pics, avatars] = await Promise.all([
+        signPaths('suggestions', rows.map((r) => r.image_path)),
+        signPaths('profile', rows.map((r) => r.author?.avatar_url)),
+      ]);
+      return rows.map((r) => ({
+        ...r,
+        image_url: r.image_path ? pics[r.image_path] ?? null : null,
+        author: r.author && { ...r.author, avatar_url: avatarUrl(r.author.avatar_url, avatars) },
+      }));
+    },
+    adminApproveSuggestion: (id: string, title: string, joke: string, odds_n: number) =>
+      call<DbCard>('admin_approve_suggestion', { p_id: id, p_title: title, p_joke: joke, p_odds_n: odds_n }),
+    adminRejectSuggestion: (id: string, note: string) => call<void>('admin_reject_suggestion', { p_id: id, p_note: note }),
+    adminSetBanned: (userId: string, banned: boolean) => call<void>('admin_set_banned', { p_user: userId, p_banned: banned }),
+    // gifts, trades and duels between friends
+    giftCard: (to: string, cardId: string) => call<{ quantity_left: number }>('gift_card', { p_to: to, p_card: cardId }),
+    async gifts(): Promise<Gift[]> {
+      const rows = (await call<(Omit<Gift, 'card'> & { card: DbCard })[] | null>('get_gifts')) ?? [];
+      const view = await seen(rows.map((r) => r.card));
+      return rows.map((r) => ({ ...r, card: view(r.card) }));
+    },
+    proposeTrade: (to: string, give: string, want: string) => call<{ id: string; status: string }>('propose_trade', { p_to: to, p_give: give, p_want: want }),
+    respondTrade: (id: string, accept: boolean) => call<{ id: string; status: string }>('respond_trade', { p_trade: id, p_accept: accept }),
+    cancelTrade: (id: string) => call<{ id: string; status: string }>('cancel_trade', { p_trade: id }),
+    async trades(): Promise<{ incoming: Trade[]; outgoing: Trade[] }> {
+      type Raw = Omit<Trade, 'give' | 'want'> & { give: DbCard; want: DbCard };
+      const r = (await call<{ incoming?: Raw[] | null; outgoing?: Raw[] | null } | null>('get_trades')) ?? {};
+      const all = [...(r.incoming ?? []), ...(r.outgoing ?? [])];
+      const view = await seen(all.flatMap((t) => [t.give, t.want]));
+      const map = (t: Raw): Trade => ({ ...t, give: view(t.give), want: view(t.want) });
+      return { incoming: (r.incoming ?? []).map(map), outgoing: (r.outgoing ?? []).map(map) };
+    },
+    createChallenge: (to: string, bet: number) => call<{ id: string; status: string }>('create_challenge', { p_to: to, p_bet: bet }),
+    async respondChallenge(id: string, accept: boolean): Promise<Challenge | null> {
+      const raw = await call<(Omit<Challenge, 'draws_from' | 'draws_to'> & { draws_from: DbCard[]; draws_to: DbCard[] }) | null>('respond_challenge', { p_id: id, p_accept: accept });
+      if (!raw) return null;
+      const view = await seen([...(raw.draws_from ?? []), ...(raw.draws_to ?? [])]);
+      return { ...raw, bet: Number(raw.bet), draws_from: (raw.draws_from ?? []).map(view), draws_to: (raw.draws_to ?? []).map(view) };
+    },
+    cancelChallenge: (id: string) => call<{ id: string; status: string }>('cancel_challenge', { p_id: id }),
+    async challenges(): Promise<{ incoming: Challenge[]; outgoing: Challenge[]; recent: Challenge[] }> {
+      type Raw = Omit<Challenge, 'draws_from' | 'draws_to'> & { draws_from: DbCard[]; draws_to: DbCard[] };
+      const r = (await call<{ incoming?: Raw[] | null; outgoing?: Raw[] | null; recent?: Raw[] | null } | null>('get_challenges')) ?? {};
+      const lists = [r.incoming ?? [], r.outgoing ?? [], r.recent ?? []];
+      const view = await seen(lists.flat().flatMap((c) => [...(c.draws_from ?? []), ...(c.draws_to ?? [])]));
+      const map = (c: Raw): Challenge => ({ ...c, bet: Number(c.bet), draws_from: (c.draws_from ?? []).map(view), draws_to: (c.draws_to ?? []).map(view) });
+      return { incoming: lists[0].map(map), outgoing: lists[1].map(map), recent: lists[2].map(map) };
+    },
+
+    // daily missions and the weekly event card
+    missions: async (): Promise<Mission[]> => (await call<Mission[] | null>('get_missions')) ?? [],
+    claimMission: (id: string) => call<{ coins_after: number; coins: number; xp: number }>('claim_mission', { p_id: id }),
+    async weeklyEvent(): Promise<WeeklyEvent | null> {
+      const r = await call<(Omit<WeeklyEvent, 'card'> & { card: DbCard }) | null>('get_event');
+      if (!r?.card) return null;
+      const view = await seen([r.card]);
+      return { ...r, card: view(r.card) };
+    },
+
     adminDeleteCard: (id: string) => call<{ owners: number; image_path: string | null }>('admin_delete_card', { p_card: id }),
     async adminListPlayers(): Promise<AdminPlayer[]> {
       const rows = (await call<AdminPlayer[] | null>('admin_list_players')) ?? [];

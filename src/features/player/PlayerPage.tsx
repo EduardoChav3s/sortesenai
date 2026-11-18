@@ -5,6 +5,7 @@ import { formatOdds } from '@/lib/format';
 import { isLive, playerChip, usePlayer, usePlayerCollection } from '@/data/live';
 import type { CollectionEntry } from '@/data/types';
 import { FriendButton } from '@/features/friends/FriendButton';
+import { FriendActions } from '@/features/friends/Social';
 import p from '@/features/profile/ProfilePage.module.css';
 import s from './PlayerPage.module.css';
 
@@ -32,7 +33,7 @@ export function PlayerPage() {
   const chip = playerChip(profile.id, profile.nickname, profile.avatar_url);
   const showcase: CollectionEntry[] = (profile.showcase ?? []).map((c) => ({
     owned: true, quantity: 1,
-    card: { id: c.id, odds_n: Number(c.odds_n), active: c.active, title: c.title ?? '', joke: c.joke ?? '', image_url: (c as { image_url?: string | null }).image_url ?? null },
+    card: { id: c.id, number: c.number, odds_n: Number(c.odds_n), active: c.active, title: c.title ?? '', joke: c.joke ?? '', image_url: (c as { image_url?: string | null }).image_url ?? null },
   }));
   const owned = cards.data ?? [];
   const known = owned.filter((e) => e.known).length;
@@ -56,6 +57,8 @@ export function PlayerPage() {
           <FriendButton id={profile.id} status={friend} />
         </div>
       </section>
+
+      {friend === 'friends' && <FriendActions friendId={profile.id} friendName={profile.nickname} />}
 
       <div className={p.stats}>
         <div className={`panel ${p.stat}`}>

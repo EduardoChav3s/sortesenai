@@ -2,8 +2,9 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { formatCoins, formatLuck } from '@/lib/format';
 import { ME, WALLET } from '@/design/sample';
-import { isLive, useClaimDaily, useDailyStatus, playerChip, useFriends, useLevel, useLuck, useMyProfile, useRole, useWallet } from '@/data/live';
+import { isLive, useChallenges, useClaimDaily, useDailyStatus, playerChip, useFriends, useLevel, useTrades, useLuck, useMyProfile, useRole, useWallet } from '@/data/live';
 import { Avatar } from '@/ui/Avatar';
+import { LiveNotice } from '@/features/roll/Extras';
 import { levelProgress } from '@/lib/level';
 import {
   IconBag,
@@ -143,7 +144,9 @@ export function Shell() {
   const pathname = path.startsWith('/jogador/') ? '/perfil' : path;
   const title = path.startsWith('/jogador/') ? 'Jogador' : TITLES[pathname] ?? 'SorteSenai';
   const friends = useFriends();
-  const incoming = friends.data?.incoming.length ?? 0;
+  const trades = useTrades();
+  const duels = useChallenges();
+  const incoming = (friends.data?.incoming.length ?? 0) + (trades.data?.incoming.length ?? 0) + (duels.data?.incoming.length ?? 0);
   const wallet = useWallet();
   const coins = wallet.data?.coins ?? (isLive ? 0 : WALLET.coins);
   const myName = wallet.data?.nickname ?? ME.name;
@@ -159,6 +162,7 @@ export function Shell() {
 
   return (
     <div className={s.shell} style={pageStyle(pathname)}>
+      {isLive && <LiveNotice />}
       <aside className={`panel ${s.sidebar}`} aria-label="Navegação principal">
         <Brand />
         <nav className={s.nav}>
@@ -174,7 +178,7 @@ export function Shell() {
                       </span>
                       <span>{label}</span>
                       {to === '/amigos' && incoming > 0 && (
-                        <span className={s.navCount} aria-label={`${incoming} pedidos de amizade`}>
+                        <span className={s.navCount} aria-label={`${incoming} coisas esperando você em Amigos`}>
                           {incoming}
                         </span>
                       )}

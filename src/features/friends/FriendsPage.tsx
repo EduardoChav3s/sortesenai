@@ -1,7 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '@/ui/Avatar';
-import { isLive, playerChip, useFriends, useSearchPlayers } from '@/data/live';
+import { isLive, playerChip, useChallenges, useFriends, useGifts, useSearchPlayers, useTrades } from '@/data/live';
+import { CardView } from '@/ui/CardView';
+import { ChallengeItem, DuelResult, TradeItem } from './Social';
+import x from './Social.module.css';
 import type { FriendPlayer } from '@/data/api';
 import { RANKING } from '@/design/sample';
 import { FriendButton } from './FriendButton';
@@ -49,12 +52,32 @@ export function FriendsPage() {
   const search = useSearchPlayers(query);
   const lists = isLive ? friends.data ?? { friends: [], incoming: [], outgoing: [] } : { friends: [], incoming: [], outgoing: [] };
   const results = isLive ? search.data ?? [] : DEMO.filter((p) => p.nickname.toLowerCase().includes(query.toLowerCase()));
+  const trades = useTrades().data ?? { incoming: [], outgoing: [] };
+  const duels = useChallenges().data ?? { incoming: [], outgoing: [], recent: [] };
+  const gifts = useGifts().data ?? [];
+  const waiting = trades.incoming.length + duels.incoming.length;
+  const sent = trades.outgoing.length + duels.outgoing.length;
 
   return (
     <div className="page">
-      <p className="page-sub">Adicione a turma, veja o que cada um já tirou e compare as coleções.</p>
+      <p className="page-sub">Adicione a turma, troque repetidas, dê presentes e desafie para duelos. Abra o perfil de um amigo para começar.</p>
       <div className={s.layout}>
         <div className={s.col}>
+          {waiting > 0 && (
+            <section className={`panel ${s.box} ${s.incoming}`} aria-labelledby="todo-title">
+              <h2 id="todo-title" className={s.boxTitle}>
+                Esperando você <span className={s.count}>{waiting}</span>
+              </h2>
+              <ul className={s.list}>
+                {trades.incoming.map((t) => (
+                  <TradeItem key={t.id} t={t} incoming />
+                ))}
+                {duels.incoming.map((c) => (
+                  <ChallengeItem key={c.id} c={c} incoming />
+                ))}
+              </ul>
+            </section>
+          )}
           {lists.incoming.length > 0 && (
             <section className={`panel ${s.box} ${s.incoming}`} aria-labelledby="in-title">
               <h2 id="in-title" className={s.boxTitle}>
@@ -90,6 +113,53 @@ export function FriendsPage() {
               </ul>
             )}
           </section>
+
+          {gifts.length > 0 && (
+            <section className={`panel ${s.box}`} aria-labelledby="gifts-title">
+              <h2 id="gifts-title" className={s.boxTitle}>
+                Presentes recebidos
+              </h2>
+              <ul className={x.pickGrid}>
+                {gifts.map((g) => (
+                  <li key={g.id} className={x.mini}>
+                    <CardView entry={g.card.known ? { owned: true, quantity: 1, card: g.card.card } : { owned: false, quantity: 0, card: g.card.card }} size="s" />
+                    <span className={x.pickNote}>de {g.from.nickname}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {duels.recent.length > 0 && (
+            <section className={`panel ${s.box}`} aria-labelledby="duels-title">
+              <h2 id="duels-title" className={s.boxTitle}>
+                Últimos duelos
+              </h2>
+              <ul className={s.list}>
+                {duels.recent.slice(0, 3).map((c) => (
+                  <li key={c.id} className={x.item}>
+                    <DuelResult duel={c} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {sent > 0 && (
+            <section className={`panel ${s.box}`} aria-labelledby="sent-title">
+              <h2 id="sent-title" className={s.boxTitle}>
+                Trocas e desafios enviados
+              </h2>
+              <ul className={s.list}>
+                {trades.outgoing.map((t) => (
+                  <TradeItem key={t.id} t={t} incoming={false} />
+                ))}
+                {duels.outgoing.map((c) => (
+                  <ChallengeItem key={c.id} c={c} incoming={false} />
+                ))}
+              </ul>
+            </section>
+          )}
 
           {lists.outgoing.length > 0 && (
             <section className={`panel ${s.box}`} aria-labelledby="out-title">
