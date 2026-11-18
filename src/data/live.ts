@@ -287,3 +287,50 @@ export function useClaimMission() {
   const inv = useInvalidate();
   return useMutation({ mutationFn: (id: string) => api!.claimMission(id), onSettled: () => inv('missions', 'wallet', 'level') });
 }
+
+// ---------------------------------------------------------------- music
+import { musicUrl, removeAudio, uploadAudio } from './client';
+import type { MusicSlot, Track } from './api';
+export type PlayableTrack = Track & { url: string };
+const playable = (t: Track): PlayableTrack => ({ ...t, url: musicUrl(t.path) });
+
+/** Songs for the sign-in page. Works before sign-in (the bucket is public). */
+export const useLoginMusic = () =>
+  useQuery({ queryKey: ['music', 'login'], queryFn: async () => (await api!.loginMusic()).map(playable), enabled: isLive, staleTime: 10 * 60_000, retry: 0 });
+export const useRareMusic = () =>
+  useQuery({
+    queryKey: ['music', 'rare'],
+    queryFn: async () => {
+      const r = await api!.rareMusic();
+      return { lendario: r.lendario.map(playable), mitico: r.mitico.map(playable) };
+    },
+    enabled: isLive,
+    staleTime: 10 * 60_000,
+  });
+export const useAdminTracks = () => useQuery({ queryKey: ['music', 'admin'], queryFn: async () => (await api!.adminListTracks()).map(playable), enabled: isLive });
+
+export function useMusicActions() {
+  const inv = useInvalidate();
+  return {
+    add: useMutation({
+      mutationFn: async (v: { title: string; slot: MusicSlot; file: File }) => {
+        const path = await uploadAudio(v.slot, v.file);
+        try {
+          return await api!.adminAddTrack(v.title, path, v.slot);
+        } catch (e) {
+          await removeAudio(path).catch(() => undefined); // no orphan file if saving the row fails
+          throw e;
+        }
+      },
+      onSettled: () => inv('music'),
+    }),
+    remove: useMutation({
+      mutationFn: async (id: string) => {
+        const r = await api!.adminDeleteTrack(id);
+        await removeAudio(r.path).catch(() => undefined);
+        return r;
+      },
+      onSettled: () => inv('music'),
+    }),
+  };
+}

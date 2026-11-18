@@ -295,3 +295,20 @@ test('cards inside trades and duels stay locked unless the viewer owns them', as
   expect(ev?.card.known).toBe(false);
   expect(ev?.card.card.odds_n).toBe(5000);
 });
+
+test('music calls its RPCs with the right argument names and never fails on an empty answer', async () => {
+  const { rpc, calls } = fakeRpc({});
+  const a = createApi(rpc);
+  expect(await a.loginMusic()).toEqual([]);
+  expect(await a.rareMusic()).toEqual({ lendario: [], mitico: [] });
+  await a.adminListTracks();
+  await a.adminAddTrack('Tema', 'login/x.mp3', 'login');
+  await a.adminDeleteTrack('m1');
+  expect(calls.map((c) => [c.fn, c.args])).toEqual([
+    ['get_login_music', undefined],
+    ['get_rare_music', undefined],
+    ['admin_list_tracks', undefined],
+    ['admin_add_track', { p_title: 'Tema', p_path: 'login/x.mp3', p_slot: 'login' }],
+    ['admin_delete_track', { p_id: 'm1' }],
+  ]);
+});

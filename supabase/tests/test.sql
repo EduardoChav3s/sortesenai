@@ -397,6 +397,40 @@ select t.ok((public.get_event()->'card') ? 'joke', 'evento mostra a piada para q
 reset role;
 update public.settings set value = value - 'event_card';
 
+-- ------------------------------------------------------------ music
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err($$select public.admin_add_track('Tema', 'a.mp3', 'login')$$, 'forbidden', 'so o admin cadastra musica');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.err($$select public.admin_add_track('Tema', 'a.mp3', 'festa')$$, 'invalid', 'lugar de musica invalido recusado');
+select t.err($$select public.admin_add_track('  ', 'a.mp3', 'login')$$, 'invalid', 'musica sem nome recusada');
+select (public.admin_add_track('Tema da turma', 'login/tema.mp3', 'login')->>'id') as track1 \gset
+select public.admin_add_track('Hino lendario', 'lendario/hino.mp3', 'lendario');
+select public.admin_add_track('Grito mitico', 'mitico/grito.mp3', 'mitico');
+select t.ok(jsonb_array_length(public.admin_list_tracks()) = 3, 'admin lista as musicas');
+select t.ok(jsonb_array_length(public.get_rare_music()->'lendario') = 1 and jsonb_array_length(public.get_rare_music()->'mitico') = 1,
+            'jogador recebe as musicas das cartas raras');
+reset role;
+set role anon;
+select public.get_login_music() as login_music \gset
+do $$
+begin
+  perform public.get_rare_music();
+  raise exception 'FAIL: quem nao entrou leu as musicas raras';
+exception when insufficient_privilege then
+  raise notice 'ok  quem nao entrou nao le as outras musicas';
+end $$;
+reset role;
+select t.ok((:'login_music'::jsonb)->0->>'path' = 'login/tema.mp3', 'tela de login le as musicas sem estar logado');
+select t.ok(jsonb_array_length(:'login_music'::jsonb) = 1, 'tela de login so recebe musicas de login');
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok(public.admin_delete_track(:'track1')->>'path' = 'login/tema.mp3', 'apagar musica devolve o arquivo para remover');
+select t.err(format('select public.admin_delete_track(%L)', :'track1'), 'not_found', 'nao apaga musica que nao existe');
+reset role;
+
 -- ------------------------------------------------------------ randomness
 select t.ok((select min(x) >= 0 and max(x) < 1 and abs(avg(x) - 0.5) < 0.02 from (select app.rand() x from generate_series(1, 20000)) r),
             'app.rand uniforme em [0,1)');

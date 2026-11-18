@@ -6,7 +6,8 @@ import { CardView } from '@/ui/CardView';
 import { formatCoins, formatOdds } from '@/lib/format';
 import { rarityTier, TIER_LABEL } from '@/lib/rarity';
 import { supabase } from '@/data/client';
-import { isLive, toFeedRow, useClaimMission, useFeed, useMissions, useWeeklyEvent } from '@/data/live';
+import { isLive, toFeedRow, useClaimMission, useFeed, useMissions, useWeeklyEvent, type PlayableTrack } from '@/data/live';
+import { pickRandom } from '@/lib/playlist';
 import type { RarityTier } from '@/data/types';
 import s from './Extras.module.css';
 
@@ -71,23 +72,88 @@ function fanfare(tier: string) {
   }
 }
 
-/** Call celebrate(odds) after a pull. Rare or better: shake + confetti + sound, bigger the rarer. */
-export function useRareEffect(soundOn: boolean) {
+type RareMusic = { lendario: PlayableTrack[]; mitico: PlayableTrack[] };
+const SONG_SECONDS = 30;
+
+/**
+ * Call celebrate(odds) after a pull. Rare or better: shake + confetti + sound, bigger the rarer.
+ * Legendary and mythic play one of the admin's songs for that rarity (up to 30 s, then fade), else the fanfare.
+ */
+export function useRareEffect(soundOn: boolean, music?: RareMusic) {
   const [burst, setBurst] = useState<{ tier: string; key: number } | null>(null);
+  const [song, setSong] = useState<string | null>(null);
   const timer = useRef<number>();
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const player = useRef<HTMLAudioElement | null>(null);
+  const songTimers = useRef<number[]>([]);
+
+  const stopSong = useCallback(() => {
+    songTimers.current.forEach((t) => window.clearTimeout(t));
+    songTimers.current = [];
+    player.current?.pause();
+    player.current = null;
+    setSong(null);
+  }, []);
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current);
+      stopSong();
+    },
+    [stopSong],
+  );
+
+  const playSong = useCallback(
+    (track: PlayableTrack) => {
+      stopSong();
+      const a = new Audio(track.url);
+      a.volume = 0.7;
+      a.addEventListener('ended', () => stopSong());
+      player.current = a;
+      setSong(track.title);
+      a.play().catch(() => stopSong());
+      // after 30 s, fade out over 2 s
+      songTimers.current.push(
+        window.setTimeout(() => {
+          for (let i = 1; i <= 10; i++) songTimers.current.push(window.setTimeout(() => a.volume = Math.max(0, 0.7 * (1 - i / 10)), i * 200));
+          songTimers.current.push(window.setTimeout(() => stopSong(), 2100));
+        }, SONG_SECONDS * 1000),
+      );
+    },
+    [stopSong],
+  );
+
   const celebrate = useCallback(
     (odds: number) => {
       const tier = rarityTier(odds);
       if (!BIG.includes(tier)) return;
       setBurst({ tier, key: Date.now() });
-      if (soundOn) fanfare(tier);
+      if (soundOn) {
+        const songs = tier === 'lendario' || tier === 'mitico' ? music?.[tier] ?? [] : [];
+        const track = pickRandom(songs, Math.random());
+        if (track) playSong(track);
+        else fanfare(tier);
+      }
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setBurst(null), 2600 + STRENGTH[tier] * 300);
     },
-    [soundOn],
+    [soundOn, music, playSong],
   );
-  return { burst, celebrate };
+  return { burst, celebrate, song, stopSong };
+}
+
+/** Small bar while a rare-card song plays, with a stop button. */
+export function SongBar({ title, onStop }: { title: string; onStop: () => void }) {
+  return (
+    <div className={s.songBar} role="status">
+      <span className={s.songNote} aria-hidden="true">
+        ♪
+      </span>
+      <span className={s.songTitle}>{title}</span>
+      <button type="button" className={s.songStop} onClick={onStop}>
+        Parar
+      </button>
+    </div>
+  );
 }
 
 export function RareBurst({ tier }: { tier: string }) {

@@ -14,3 +14,21 @@ export function imagePath(file: File, folder?: string): string {
   const name = `${crypto.randomUUID()}.${TYPES[file.type] ?? 'bin'}`;
   return folder ? `${folder}/${name}` : name;
 }
+
+// Music the admin uploads (sign-in page and rare-card songs).
+const AUDIO: Record<string, string> = {
+  'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/x-wav': 'wav',
+  'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/x-m4a': 'm4a',
+};
+export const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+
+export function checkAudio(file: File): string | null {
+  if (!AUDIO[file.type]) return 'Use um arquivo de música (MP3, OGG, WAV, M4A).';
+  if (file.size > MAX_AUDIO_BYTES) return 'A música passa de 15 MB.';
+  return null;
+}
+
+/** Storage path for a song: the slot folder plus a random name. */
+export function audioPath(file: File, slot: string): string {
+  return `${slot}/${crypto.randomUUID()}.${AUDIO[file.type] ?? 'mp3'}`;
+}

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthGate } from '@/auth/AuthGate';
 import { authDeps } from '@/data/client';
 import { LoginPage } from '@/auth/LoginPage';
+import { LoginMusic } from '@/auth/LoginMusic';
 
 // Dev-only preview of the login page that never touches the real session.
 const previewDeps = {
@@ -30,7 +31,13 @@ import { PlayerPage } from '@/features/player/PlayerPage';
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000 } } });
 
 export function App() {
-  if (import.meta.env.DEV && window.location.pathname === '/_login') return <LoginPage deps={previewDeps} />;
+  if (import.meta.env.DEV && window.location.pathname === '/_login')
+    return (
+      <>
+        <LoginPage deps={previewDeps} />
+        <LoginMusic />
+      </>
+    );
   useEffect(() => {
     document.title = 'SorteSenai';
   }, []);

@@ -108,3 +108,12 @@
   margin-inline-start: auto; display: inline-grid; place-items: center; min-inline-size: 20px; block-size: 20px; padding: 0 6px;
   border-radius: var(--radius-pill); font: 800 11px/1 var(--font-body); color: var(--color-accent-ink, #fff); background: var(--color-error);
 }
+
+/* sign out, under the player chip */
+.signOut {
+  align-self: stretch; margin-block-start: var(--space-2xs); padding: 0.5rem 0.75rem; border: 0; border-radius: var(--radius-well); cursor: pointer;
+  font: 600 var(--text-xs)/1 var(--font-body); color: var(--color-muted); background: transparent; text-align: start;
+}
+.signOut:hover:not(:disabled) { color: var(--color-error); background: color-mix(in oklab, var(--color-error) 8%, transparent); }
+.signOut:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+.signOut:disabled { cursor: default; }

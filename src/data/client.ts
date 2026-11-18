@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createApi, type Api, type Sign } from './api';
-import { checkImage, imagePath } from './upload';
+import { audioPath, checkAudio, checkImage, imagePath } from './upload';
 import type { AuthDeps } from '@/auth/AuthGate';
 import { toLoginError } from '@/auth/authErrors';
 
@@ -128,4 +128,24 @@ export async function copyIdeaPhotoToCards(path: string): Promise<string> {
   const { error } = await supabase!.storage.from('suggestions').copy(path, to, { destinationBucket: 'cards' });
   if (error) throw new Error('Não deu para copiar a foto da ideia.');
   return to;
+}
+
+// ---------------------------------------------------------------- music (public bucket)
+/** Public address of a song in the music bucket. */
+export function musicUrl(path: string): string {
+  return supabase!.storage.from('music').getPublicUrl(path).data.publicUrl;
+}
+
+/** Uploads a song for a slot (admin only) and returns its storage path. */
+export async function uploadAudio(slot: string, file: File): Promise<string> {
+  const problem = checkAudio(file);
+  if (problem) throw new Error(problem);
+  const path = audioPath(file, slot);
+  const { error } = await supabase!.storage.from('music').upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error('Não deu para enviar a música.');
+  return path;
+}
+
+export async function removeAudio(path: string) {
+  await supabase!.storage.from('music').remove([path]);
 }

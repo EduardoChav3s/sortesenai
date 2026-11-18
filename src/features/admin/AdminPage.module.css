@@ -70,3 +70,14 @@ tr[data-open='true'] td { background: var(--color-paper); }
 .check { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
 .check input { inline-size: 18px; block-size: 18px; accent-color: var(--color-accent); }
 tr[data-banned='true'] td:first-child { opacity: 0.6; }
+
+/* music */
+.musicFields { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 14rem); gap: var(--space-md); align-items: start; }
+@media (max-width: 52rem) { .musicFields { grid-template-columns: 1fr; } }
+.musicSlot { display: grid; gap: var(--space-sm); padding: var(--space-lg); }
+.tabCountNeutral { display: inline-grid; place-items: center; min-inline-size: 22px; block-size: 22px; padding: 0 6px; margin-inline-start: 6px; border-radius: var(--radius-pill); font: 800 var(--text-xs)/1 var(--font-body); background: var(--color-paper-2); color: var(--color-muted); vertical-align: middle; }
+.trackList { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-xs); }
+.track { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 18rem) auto; align-items: center; gap: var(--space-sm); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-well); background: var(--color-paper); }
+.trackTitle { font-weight: 600; font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trackAudio { inline-size: 100%; block-size: 36px; }
+@media (max-width: 40rem) { .track { grid-template-columns: 1fr; } }

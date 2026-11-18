@@ -1,4 +1,7 @@
 import { NavLink } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { authDeps } from '@/data/client';
+import { SignOutButton } from '@/app/SignOutButton';
 import { IconBulb, IconFriends, IconShield, IconSparkle, IconTrophy, IconUser } from '@/ui/icons';
 
 const LINKS = [
@@ -11,6 +14,7 @@ const LINKS = [
 ];
 
 export function MorePage() {
+  const qc = useQueryClient();
   return (
     <div className="page">
       <ul className="panel" style={{ listStyle: 'none', margin: 0, padding: 'var(--space-xs)', display: 'grid', gap: '2px' }}>
@@ -27,6 +31,11 @@ export function MorePage() {
           </li>
         ))}
       </ul>
+      {authDeps && (
+        <div style={{ marginBlockStart: 'var(--space-md)' }}>
+          <SignOutButton signOut={authDeps.signOut} forget={() => qc.clear()} className="btn btn-secondary" />
+        </div>
+      )}
     </div>
   );
 }

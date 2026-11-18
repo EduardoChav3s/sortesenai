@@ -84,6 +84,9 @@ export interface Challenge {
 export interface Mission { id: string; title: string; goal: number; coins: number; xp: number; progress: number; claimed: boolean }
 export interface WeeklyEvent { card: SeenCard; multiplier: number; starts_at: string; ends_at: string }
 
+export type MusicSlot = 'login' | 'lendario' | 'mitico';
+export interface Track { id: string; title: string; path: string; slot: MusicSlot; created_at: string }
+
 /** An idea sent by a player, as the admin sees it. image_path stays raw so the photo can be copied to the card. */
 export interface AdminSuggestion {
   id: string;
@@ -300,6 +303,16 @@ export function createApi(rpc: Rpc, sign?: Sign) {
       const view = await seen([r.card]);
       return { ...r, card: view(r.card) };
     },
+
+    // music (login works before sign-in)
+    loginMusic: async (): Promise<Track[]> => (await call<Track[] | null>('get_login_music')) ?? [],
+    async rareMusic(): Promise<{ lendario: Track[]; mitico: Track[] }> {
+      const r = (await call<{ lendario?: Track[] | null; mitico?: Track[] | null } | null>('get_rare_music')) ?? {};
+      return { lendario: r.lendario ?? [], mitico: r.mitico ?? [] };
+    },
+    adminListTracks: async (): Promise<Track[]> => (await call<Track[] | null>('admin_list_tracks')) ?? [],
+    adminAddTrack: (title: string, path: string, slot: MusicSlot) => call<Track>('admin_add_track', { p_title: title, p_path: path, p_slot: slot }),
+    adminDeleteTrack: (id: string) => call<{ path: string }>('admin_delete_track', { p_id: id }),
 
     adminDeleteCard: (id: string) => call<{ owners: number; image_path: string | null }>('admin_delete_card', { p_card: id }),
     async adminListPlayers(): Promise<AdminPlayer[]> {

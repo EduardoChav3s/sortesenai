@@ -5,6 +5,9 @@ import { ME, WALLET } from '@/design/sample';
 import { isLive, useChallenges, useClaimDaily, useDailyStatus, playerChip, useFriends, useLevel, useTrades, useLuck, useMyProfile, useRole, useWallet } from '@/data/live';
 import { Avatar } from '@/ui/Avatar';
 import { LiveNotice } from '@/features/roll/Extras';
+import { useQueryClient } from '@tanstack/react-query';
+import { authDeps } from '@/data/client';
+import { SignOutButton } from './SignOutButton';
 import { levelProgress } from '@/lib/level';
 import {
   IconBag,
@@ -140,6 +143,7 @@ function DailyButton() {
 
 export function Shell() {
   const { pathname: path } = useLocation();
+  const qc = useQueryClient();
   // Another player's page borrows the profile section color and title.
   const pathname = path.startsWith('/jogador/') ? '/perfil' : path;
   const title = path.startsWith('/jogador/') ? 'Jogador' : TITLES[pathname] ?? 'SorteSenai';
@@ -214,6 +218,7 @@ export function Shell() {
             </span>
             {lv && lv.reward > 0 && <span className={s.meDot} title="Prêmio de nível para pegar" />}
           </NavLink>
+          {authDeps && <SignOutButton signOut={authDeps.signOut} forget={() => qc.clear()} className={s.signOut} />}
         </div>
       </aside>
 

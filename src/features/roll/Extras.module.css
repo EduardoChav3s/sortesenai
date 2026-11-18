@@ -72,3 +72,16 @@
   .shout, .notice { animation-duration: 0.01s; }
   :global([data-shake]) { animation: none !important; }
 }
+
+/* ---------- rare-card song ---------- */
+.songBar {
+  position: fixed; inset-block-end: calc(var(--space-lg) + 72px); inset-inline-start: 50%; translate: -50% 0; z-index: 85;
+  display: inline-flex; align-items: center; gap: var(--space-sm); max-inline-size: min(26rem, calc(100vw - 2rem));
+  padding: 6px 6px 6px 14px; border-radius: var(--radius-pill); color: var(--color-paper-3); background: var(--color-ink); box-shadow: var(--shadow-sheet);
+  animation: drop 0.4s var(--ease-out) both;
+}
+@media (min-width: 52rem) { .songBar { inset-block-end: var(--space-lg); } }
+.songNote { font-size: 1.1rem; }
+.songTitle { font-weight: 600; font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.songStop { flex: none; padding: 0.45rem 0.8rem; border: 0; border-radius: var(--radius-pill); cursor: pointer; font: 700 var(--text-xs)/1 var(--font-body); color: var(--color-ink); background: var(--color-paper-3); }
+.songStop:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }

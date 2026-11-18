@@ -2,13 +2,13 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { CardView } from '@/ui/CardView';
 import { Avatar } from '@/ui/Avatar';
-import { Missions, RareBurst, WeeklyEventBanner, useRareEffect, useSound } from './Extras';
+import { Missions, RareBurst, SongBar, WeeklyEventBanner, useRareEffect, useSound } from './Extras';
 import { rarityTier as tierOf } from '@/lib/rarity';
 import { IconClover, IconCoin } from '@/ui/icons';
 import { FEED, REEL, WALLET } from '@/design/sample';
 import { formatLuck, formatOdds } from '@/lib/format';
 import { rarityTier, TIER_LABEL } from '@/lib/rarity';
-import { isLive, toFeedRow, useFeed, useLuck, usePull, usePullMany } from '@/data/live';
+import { isLive, toFeedRow, useFeed, useLuck, usePull, usePullMany, useRareMusic } from '@/data/live';
 import { isApiError } from '@/data/errors';
 import type { CollectionEntry } from '@/data/types';
 import s from './RollPage.module.css';
@@ -28,7 +28,14 @@ export function RollPage() {
   const [won, setWon] = useState<CollectionEntry | null>(null);
   const [batch, setBatch] = useState<CollectionEntry[]>([]);
   const sound = useSound();
-  const { burst, celebrate } = useRareEffect(sound.on);
+  const rareMusic = useRareMusic();
+  const { burst, celebrate, song, stopSong } = useRareEffect(sound.on, rareMusic.data);
+  // The reel lands 2 s after the click: use the latest celebrate (songs may have loaded meanwhile).
+  const celebrateNow = useRef(celebrate);
+  celebrateNow.current = celebrate;
+  useEffect(() => {
+    if (!sound.on) stopSong();
+  }, [sound.on, stopSong]);
   const [shake, setShake] = useState<string | null>(null);
   const landTimer = useRef<number[]>([]);
   useEffect(() => () => landTimer.current.forEach((t) => window.clearTimeout(t)), []);
@@ -44,7 +51,7 @@ export function RollPage() {
     landTimer.current.forEach((t) => window.clearTimeout(t));
     landTimer.current = [
       window.setTimeout(() => {
-        celebrate(odds);
+        celebrateNow.current(odds);
         const tier = tierOf(odds);
         if (tier === 'raro' || tier === 'epico' || tier === 'lendario' || tier === 'mitico') setShake(tier);
       }, 2200),
@@ -100,6 +107,7 @@ export function RollPage() {
   return (
     <div className={s.page}>
       {burst && <RareBurst key={burst.key} tier={burst.tier} />}
+      {song && <SongBar title={song} onStop={stopSong} />}
       <WeeklyEventBanner />
       <section className={`panel ${s.stage}`} aria-label="Roleta" data-shake={shake ?? undefined}>
         <div className={s.track}>

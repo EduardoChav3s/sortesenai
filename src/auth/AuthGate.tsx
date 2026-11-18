@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { decideGate } from './gate';
 import { LoginPage, type LoginDeps } from './LoginPage';
+import { LoginMusic } from './LoginMusic';
 import s from './AuthGate.module.css';
 
 type Access = 'ok' | 'not_invited' | 'banned';
@@ -83,7 +84,13 @@ export function AuthGate({ deps, children }: { deps: AuthDeps | null; children: 
       </Screen>
     );
   if (!checked || gate === 'loading') return <Screen title="Abrindo o álbum…" text="Preparando sua conta." />;
-  if (gate === 'login') return <LoginPage deps={deps!} onAdmin={() => window.location.assign('/admin')} />;
+  if (gate === 'login')
+    return (
+      <>
+        <LoginPage deps={deps!} onAdmin={() => window.location.assign('/admin')} />
+        <LoginMusic />
+      </>
+    );
   const banned = gate === 'banned';
   return (
     <Screen

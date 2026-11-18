@@ -17,3 +17,19 @@ test('imagePath puts the file in the folder with a random name and the right ext
   expect(p).toMatch(/^u1\/[0-9a-f-]{36}\.webp$/);
   expect(imagePath(file('image/jpeg', 10, 'a.jpeg'))).toMatch(/^[0-9a-f-]{36}\.jpg$/);
 });
+
+import { checkAudio, audioPath } from './upload';
+
+test('accepts common audio files up to 15 MB', () => {
+  expect(checkAudio(file('audio/mpeg', 1000, 'a.mp3'))).toBeNull();
+  expect(checkAudio(file('audio/ogg', 15 * 1024 * 1024, 'a.ogg'))).toBeNull();
+});
+
+test('rejects non-audio and audio over 15 MB', () => {
+  expect(checkAudio(file('image/png', 10))).toBe('Use um arquivo de música (MP3, OGG, WAV, M4A).');
+  expect(checkAudio(file('audio/mpeg', 15 * 1024 * 1024 + 1, 'a.mp3'))).toBe('A música passa de 15 MB.');
+});
+
+test('audioPath files the song under its slot with a random name', () => {
+  expect(audioPath(file('audio/mpeg', 10, 'Tema.MP3'), 'login')).toMatch(/^login\/[0-9a-f-]{36}\.mp3$/);
+});
