@@ -1,7 +1,7 @@
 // The site's only door to the database: every call is a Supabase RPC.
 // Rpc is injected so tests can run without a server.
 import { ApiError, type ApiErrorCode } from './errors';
-import type { CardContent, CardLocked, FeedEvent, GameId, PullResult, RankingEntry, RankingKind } from './types';
+import type { CardContent, CardLocked, FeedEvent, FriendStatus, GameId, PlayerSummary, PullResult, RankingEntry, RankingKind } from './types';
 
 export type Rpc = (fn: string, args?: object) => Promise<{ data: unknown; error: { message: string } | null }>;
 /** Turns private storage paths into short-lived urls. Returns path -> url. */
@@ -52,8 +52,33 @@ export interface Luck {
   streak: number;
 }
 
+/** Another player's card: full when the viewer owns it too, else only number and rarity. */
+export type PlayerCard =
+  | { known: true; quantity: number; card: AlbumCard }
+  | { known: false; quantity: number; card: AlbumCardLocked };
+
+export type FriendPlayer = PlayerSummary & { friend?: FriendStatus };
+export interface Friends {
+  friends: FriendPlayer[];
+  incoming: FriendPlayer[];
+  outgoing: FriendPlayer[];
+}
+
+/** A row of the admin player list (the admin sees every profile field). */
+export interface AdminPlayer {
+  id: string;
+  nickname: string;
+  email: string;
+  avatar_url: string | null;
+  coins: number;
+  role: 'player' | 'admin';
+  banned: boolean;
+  cards_owned: number;
+}
+
 export interface ProfileView {
-  profile: { id: string; nickname: string; avatar_url: string | null; title_name: string | null; bio: string; banner_url: string | null; showcase: DbCard[] };
+  profile: { id: string; nickname: string; avatar_url: string | null; title_name: string | null; bio: string; banner_url: string | null; showcase: DbCard[]; level?: number };
+  friend?: FriendStatus;
   stats: { pulls: number; collection_pct: number; rarest_odds: number | null };
   titles: { id: string; name: string }[];
   is_me: boolean;
@@ -66,6 +91,12 @@ export function createApi(rpc: Rpc, sign?: Sign) {
     return sign(bucket, list).catch(() => ({}) as Record<string, string>);
   }
   const cardUrls = (cards: DbCard[]) => signPaths('cards', cards.map((c) => c.image_path));
+  // Avatars are either a Google photo (full url, kept) or a file in the profile bucket (signed).
+  const avatarUrl = (p: string | null | undefined, pics: Record<string, string>) => (p ? pics[p] ?? (/^https?:/.test(p) ? p : null) : null);
+  async function withAvatars<P extends { avatar_url: string | null }>(players: P[]): Promise<P[]> {
+    const pics = await signPaths('profile', players.map((p) => p.avatar_url));
+    return players.map((p) => ({ ...p, avatar_url: avatarUrl(p.avatar_url, pics) }));
+  }
 
   async function call<T>(fn: string, args?: object): Promise<T> {
     const { data, error } = await rpc(fn, args);
@@ -97,11 +128,39 @@ export function createApi(rpc: Rpc, sign?: Sign) {
 
     async feed(limit = 20): Promise<FeedEvent[]> {
       const rows = await call<(FeedEvent & { card: DbCard })[]>('get_feed', { p_limit: limit });
-      const urls = await cardUrls(rows.map((f) => f.card));
-      return rows.map((f) => ({ ...f, card: fullCard(f.card, urls) }));
+      const [urls, pics] = await Promise.all([cardUrls(rows.map((f) => f.card)), signPaths('profile', rows.map((f) => f.player?.avatar_url))]);
+      return rows.map((f) => ({ ...f, card: fullCard(f.card, urls), player: f.player && { ...f.player, avatar_url: avatarUrl(f.player.avatar_url, pics) } }));
     },
 
-    ranking: (kind: RankingKind) => call<RankingEntry[]>('get_ranking', { p_kind: kind }),
+    async ranking(kind: RankingKind): Promise<RankingEntry[]> {
+      const rows = (await call<RankingEntry[] | null>('get_ranking', { p_kind: kind })) ?? [];
+      const pics = await signPaths('profile', rows.map((r) => r.player.avatar_url));
+      return rows.map((r) => ({ ...r, player: { ...r.player, avatar_url: avatarUrl(r.player.avatar_url, pics) } }));
+    },
+    level: () => call<{ xp: number; level: number; level_start: number; next_at: number; reward: number }>('get_level'),
+
+    // friends and other players
+    async searchPlayers(query: string): Promise<FriendPlayer[]> {
+      return withAvatars((await call<FriendPlayer[] | null>('search_players', { p_query: query })) ?? []);
+    },
+    sendFriend: (userId: string) => call<{ status: FriendStatus }>('send_friend_request', { p_user: userId }),
+    respondFriend: (userId: string, accept: boolean) => call<{ status: FriendStatus }>('respond_friend_request', { p_user: userId, p_accept: accept }),
+    removeFriend: (userId: string) => call<{ status: FriendStatus }>('remove_friend', { p_user: userId }),
+    async friends(): Promise<Friends> {
+      const r = (await call<Partial<Record<keyof Friends, FriendPlayer[] | null>> | null>('get_friends')) ?? {};
+      const [friends, incoming, outgoing] = await Promise.all([withAvatars(r.friends ?? []), withAvatars(r.incoming ?? []), withAvatars(r.outgoing ?? [])]);
+      return { friends, incoming, outgoing };
+    },
+    async playerCollection(userId: string): Promise<PlayerCard[]> {
+      const rows = (await call<{ quantity: number; card: DbCard }[] | null>('get_player_collection', { p_user: userId })) ?? [];
+      const urls = await cardUrls(rows.filter((r) => 'title' in r.card).map((r) => r.card));
+      return rows.map((r) =>
+        'title' in r.card
+          ? { known: true, quantity: r.quantity, card: fullCard(r.card, urls) }
+          : { known: false, quantity: r.quantity, card: lockedCard(r.card) },
+      );
+    },
+    claimLevel: () => call<{ gained: number; level: number; coins_after: number }>('claim_level_reward'),
     gameLimits: () => call<Record<GameId, { limit: number; earned_today: number }>>('get_game_limits'),
     playSlots: (bet: number) => call<{ reels: string[]; payout: number; capped: boolean; coins_after: number }>('play_slots', { p_bet: bet }),
     recycle: (cardId: string, quantity: number) => call<{ gained: number; coins_after: number }>('recycle', { p_card: cardId, p_quantity: quantity }),
@@ -144,6 +203,16 @@ export function createApi(rpc: Rpc, sign?: Sign) {
     },
     adminUpsertCard: (p: { id?: string; title: string; joke: string; odds_n: number; image_path?: string }) => call<object>('admin_upsert_card', { p }),
     adminSetCardActive: (id: string, active: boolean) => call<void>('admin_set_card_active', { p_card: id, p_active: active }),
+    adminDeleteCard: (id: string) => call<{ owners: number; image_path: string | null }>('admin_delete_card', { p_card: id }),
+    async adminListPlayers(): Promise<AdminPlayer[]> {
+      const rows = (await call<AdminPlayer[] | null>('admin_list_players')) ?? [];
+      const pics = await signPaths('profile', rows.map((p) => p.avatar_url));
+      return rows.map((p) => ({ ...p, coins: Number(p.coins), avatar_url: avatarUrl(p.avatar_url, pics) }));
+    },
+    adminSetCoins: (userId: string, coins: number, reason: string) =>
+      call<{ coins_after: number }>('admin_set_coins', { p_user: userId, p_coins: coins, p_reason: reason }),
+    adminAdjustCoins: (userId: string, amount: number, reason: string) =>
+      call<{ coins_after: number }>('admin_adjust_coins', { p_user: userId, p_amount: amount, p_reason: reason }),
     adminAddEmail: (email: string) => call<void>('admin_add_allowed_email', { p_email: email }),
     adminRemoveEmail: (email: string) => call<void>('admin_remove_allowed_email', { p_email: email }),
   };

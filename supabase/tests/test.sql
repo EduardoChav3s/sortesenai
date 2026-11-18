@@ -201,6 +201,105 @@ select t.ok(public.my_session()->>'access' = 'banned', 'banido ve acesso suspens
 select t.err('select public.pull()', 'banned', 'banido nao roleta');
 reset role;
 
+-- ------------------------------------------------------------ account level
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select (public.get_level()->>'xp') as got_xp \gset
+reset role;
+select t.ok(:got_xp::bigint =
+  (select count(*) from public.pulls where user_id = :duda) * 10
+  + (select count(*) from public.inventory where user_id = :duda) * 25
+  + (select count(*) from public.game_sessions where user_id = :duda and finished_at is not null) * 15
+  + (select count(*) from public.coin_transactions where user_id = :duda and reason = 'jogo:slots aposta') * 5
+  + (select count(*) from public.daily_claims where user_id = :duda) * 20
+  and :got_xp::bigint > 0,
+  'xp soma roletadas, cartas, jogos e bonus');
+set role authenticated;
+reset role;
+select t.ok(app.level_of(0) = 1 and app.level_of(99) = 1 and app.level_of(100) = 2 and app.level_of(300) = 3 and app.level_of(600) = 4, 'curva de nivel 100/300/600');
+set role authenticated;
+select t.ok((public.get_level()->>'level')::int >= 2, 'duda ja subiu de nivel com o que jogou');
+select t.ok((public.get_level()->>'reward')::bigint > 0, 'tem premio de nivel para pegar');
+select t.ok((public.claim_level_reward()->>'gained')::bigint = (select sum(50 * l) from generate_series(2, (public.get_level()->>'level')::int) l), 'premio paga 50 x nivel de cada nivel novo');
+select t.ok((public.get_level()->>'reward')::bigint = 0, 'premio zera depois de pego');
+select t.err('select public.claim_level_reward()', 'already_claimed', 'nao pega premio duas vezes');
+reset role;
+
+-- ------------------------------------------------------------ friends, other players' cards, level ranking
+\set bia '''00000000-0000-0000-0000-0000000000b1'''
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select public.my_session();
+select t.ok(jsonb_array_length(public.search_players('dud')) = 1, 'busca acha jogador pelo apelido');
+select t.ok(public.search_players('dud')->0->>'friend' = 'none', 'busca mostra que ainda nao e amigo');
+select t.ok(not exists (select 1 from jsonb_array_elements(public.search_players('')) e where e->>'id' = :bia), 'busca nao mostra voce mesmo');
+select t.ok(not exists (select 1 from jsonb_array_elements(public.search_players('')) e where e->>'id' = :ana), 'busca esconde banido');
+select t.err(format('select public.send_friend_request(%L)', :bia), 'invalid', 'nao manda pedido para si');
+select t.err(format('select public.send_friend_request(%L)', :ana), 'not_found', 'nao manda pedido para banido');
+select t.ok(public.send_friend_request(:duda)->>'status' = 'outgoing', 'pedido de amizade enviado');
+select t.ok(public.send_friend_request(:duda)->>'status' = 'outgoing', 'pedido repetido nao duplica');
+select t.ok(jsonb_array_length(public.get_friends()->'outgoing') = 1, 'pedido aparece em enviados');
+select t.ok(public.get_profile(:duda)->>'friend' = 'outgoing', 'perfil mostra pedido enviado');
+select t.ok(jsonb_array_length(public.get_player_collection(:duda)) >= 1, 've as cartas de outro jogador');
+select t.ok(not exists (select 1 from jsonb_array_elements(public.get_player_collection(:duda)) e where e->'card' ? 'joke'),
+            'carta que voce nao tem fica sem piada');
+select t.err('select count(*) from public.friendships', 'permission denied', 'jogador nao le a tabela de amizades');
+select t.err('select app.xp(auth.uid())', 'permission denied', 'jogador nao chama as funcoes internas de nivel');
+reset role;
+
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok(jsonb_array_length(public.get_friends()->'incoming') = 1, 'pedido chega para o outro jogador');
+select t.ok(public.get_player_collection(:duda)->0->'card' ? 'joke', 'na propria colecao ve a piada');
+select t.ok(public.respond_friend_request(:bia, true)->>'status' = 'friends', 'pedido aceito');
+select t.ok(jsonb_array_length(public.get_friends()->'friends') = 1, 'amigo aparece na lista');
+select t.ok(public.get_profile(:bia)->>'friend' = 'friends', 'perfil mostra que sao amigos');
+select t.err(format('select public.respond_friend_request(%L, true)', :bia), 'not_found', 'nao aceita pedido que nao existe');
+select t.ok(public.remove_friend(:bia)->>'status' = 'none', 'desfaz a amizade');
+select t.ok(public.send_friend_request(:bia)->>'status' = 'outgoing', 'manda pedido de volta');
+reset role;
+
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(jsonb_array_length(public.get_friends()->'friends') = 0, 'amizade desfeita some dos dois lados');
+select t.ok(public.respond_friend_request(:duda, false)->>'status' = 'none', 'pedido recusado');
+select t.ok(jsonb_array_length(public.get_friends()->'incoming') = 0, 'pedido recusado sai da lista');
+select t.ok(public.send_friend_request(:duda)->>'status' = 'outgoing', 'novo pedido depois de recusar');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok(public.send_friend_request(:bia)->>'status' = 'friends', 'pedido cruzado vira amizade');
+select t.ok(public.get_ranking('level')->0->'player'->>'id' = :duda, 'ranking por nivel poe quem tem mais xp em cima');
+select t.ok((public.get_ranking('level')->0->'player'->>'level')::int >= 2, 'ranking mostra o nivel do jogador');
+select t.ok((public.get_ranking('coins')->0->'player') ? 'level', 'todo ranking traz o nivel');
+select t.ok((public.get_profile(:bia)->'profile'->>'level')::int = 1, 'perfil mostra o nivel');
+reset role;
+
+-- ------------------------------------------------------------ admin: edit and delete cards, set coins
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err($$select public.admin_delete_card((public.get_collection()->0->'card'->>'id')::uuid)$$, 'forbidden', 'jogador comum nao apaga carta');
+select t.err(format('select public.admin_set_coins(%L, 999, %L)', :bia, 'eu'), 'forbidden', 'jogador comum nao mexe em saldo');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select (public.admin_list_cards()->0->>'id') as edit_id \gset
+select t.ok(public.admin_upsert_card(jsonb_build_object('id', :'edit_id', 'title', 'Editada', 'joke', 'Piada nova', 'odds_n', 1234))->>'title' = 'Editada', 'admin edita titulo, piada e raridade');
+select t.ok(exists (select 1 from jsonb_array_elements(public.admin_list_cards()) c where c->>'id' = :'edit_id' and c->>'joke' = 'Piada nova' and (c->>'odds_n')::bigint = 1234), 'edicao fica salva');
+select (select e -> 'card' ->> 'id' from jsonb_array_elements(public.get_collection()) e where (e ->> 'owned')::boolean limit 1) as owned_id \gset
+select t.ok((public.admin_delete_card(:'owned_id')->>'owners')::int >= 1, 'apagar carta conta quem tinha');
+select t.ok(not exists (select 1 from jsonb_array_elements(public.admin_list_cards()) c where c->>'id' = :'owned_id'), 'carta apagada some da lista');
+select t.ok(not exists (select 1 from jsonb_array_elements(public.get_collection()) e where e->'card'->>'id' = :'owned_id'), 'carta apagada some da colecao de quem tinha');
+select t.err(format('select public.admin_delete_card(%L)', :'owned_id'), 'not_found', 'nao apaga carta que nao existe');
+select t.ok((public.admin_set_coins(:bia, 1234, 'premio do teste')->>'coins_after')::bigint = 1234, 'admin define o saldo exato');
+select t.ok(exists (select 1 from jsonb_array_elements(public.admin_list_players()) p where p->>'id' = :bia and (p->>'coins')::bigint = 1234), 'saldo novo aparece na lista');
+select t.ok((public.admin_set_coins(:bia, 0, 'zerar')->>'coins_after')::bigint = 0, 'admin pode zerar o saldo');
+select t.err(format('select public.admin_set_coins(%L, -5, %L)', :bia, 'x'), 'invalid', 'saldo negativo recusado');
+select t.err(format('select public.admin_set_coins(%L, 10, %L)', :bia, ''), 'invalid', 'definir saldo exige motivo');
+select t.err(format('select public.admin_set_coins(%L, 10, %L)', '00000000-0000-0000-0000-000000000999', 'x'), 'not_found', 'jogador que nao existe');
+reset role;
+select t.ok((select count(*) from public.coin_transactions where user_id = :bia and reason = 'admin: premio do teste') = 1, 'mudanca de saldo fica no historico');
+
 -- ------------------------------------------------------------ randomness
 select t.ok((select min(x) >= 0 and max(x) < 1 and abs(avg(x) - 0.5) < 0.02 from (select app.rand() x from generate_series(1, 20000)) r),
             'app.rand uniforme em [0,1)');

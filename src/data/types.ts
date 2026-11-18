@@ -45,7 +45,10 @@ export interface PlayerSummary {
   title_name: string | null;
   frame_item_id: string | null;
   name_effect_item_id: string | null;
+  /** Account level, sent with every player since the level system. */
+  level?: number;
 }
+export type FriendStatus = 'me' | 'friends' | 'outgoing' | 'incoming' | 'none';
 export interface PublicProfile extends PlayerSummary {
   bio: string;
   banner_item_id: string | null;
@@ -108,7 +111,7 @@ export interface FeedEvent {
   luck: number;
   created_at: string;
 }
-export type RankingKind = 'coins' | 'collection' | 'rarest';
+export type RankingKind = 'coins' | 'collection' | 'rarest' | 'level';
 export interface RankingEntry {
   position: number;
   player: PlayerSummary;

@@ -1,5 +1,7 @@
 import { useState, type CSSProperties } from 'react';
+import { Link } from 'react-router-dom';
 import { CardView } from '@/ui/CardView';
+import { Avatar } from '@/ui/Avatar';
 import { IconClover, IconCoin } from '@/ui/icons';
 import { FEED, REEL, WALLET } from '@/design/sample';
 import { formatLuck, formatOdds } from '@/lib/format';
@@ -138,12 +140,10 @@ export function RollPage() {
             const tier = rarityTier(f.odds_n);
             return (
               <li key={f.id} className={s.feedItem}>
-                <span className="avatar" style={{ '--hue': f.player.hue, '--size': '36px' } as CSSProperties}>
-                  {f.player.initials}
-                </span>
+                <Avatar initials={f.player.initials} hue={f.player.hue} size="36px" url={(f.player as { avatar?: string | null }).avatar} />
                 <span className={s.feedText}>
                   <span>
-                    <strong>{f.player.name}</strong> tirou <strong>{f.card}</strong>
+                    {(f.player as { id?: string }).id ? <Link to={`/jogador/${(f.player as { id?: string }).id}`} className={s.who}><strong>{f.player.name}</strong></Link> : <strong>{f.player.name}</strong>} tirou <strong>{f.card}</strong>
                   </span>
                   <span className={s.feedMeta}>
                     <span className={s.badge} data-tier={tier}>

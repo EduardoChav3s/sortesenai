@@ -22,3 +22,7 @@ test('a feed event becomes a mural row with initials, card and relative time', (
 test('the same nickname always gets the same avatar color', () => {
   expect(toFeedRow(ev, Date.now()).player.hue).toBe(toFeedRow(ev, Date.now()).player.hue);
 });
+
+test('a mural row keeps the player id so the name can open their profile', () => {
+  expect(toFeedRow(ev, Date.now()).player.id).toBe('u1');
+});

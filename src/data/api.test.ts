@@ -146,3 +146,76 @@ test('recycle sends the card and how many to trade', async () => {
   expect(calls).toEqual([{ fn: 'recycle', args: { p_card: 'c1', p_quantity: 2 } }]);
   expect(r.gained).toBe(10);
 });
+
+test('level calls get_level and claim_level_reward', async () => {
+  const { rpc, calls } = fakeRpc({ get_level: { data: { xp: 350, level: 3, level_start: 300, next_at: 600, reward: 250 } } });
+  const a = createApi(rpc);
+  const l = await a.level();
+  await a.claimLevel();
+  expect(l.level).toBe(3);
+  expect(calls.map((c) => c.fn)).toEqual(['get_level', 'claim_level_reward']);
+});
+
+test('ranking and feed sign stored avatar paths but keep google photo urls', async () => {
+  const { rpc } = fakeRpc({
+    get_ranking: { data: [{ position: 1, value: 10, player: { id: 'u1', nickname: 'a', avatar_url: 'u1/a.webp' } }, { position: 2, value: 5, player: { id: 'u2', nickname: 'b', avatar_url: 'https://lh3.googleusercontent.com/x' } }] },
+  });
+  const sign = async (_b: string, paths: string[]) => Object.fromEntries(paths.map((p) => [p, `https://signed/${p}`]));
+  const r = await createApi(rpc, sign).ranking('coins');
+  expect(r[0].player.avatar_url).toBe('https://signed/u1/a.webp');
+  expect(r[1].player.avatar_url).toBe('https://lh3.googleusercontent.com/x');
+});
+
+test('friends and other players call their RPCs with the right argument names', async () => {
+  const { rpc, calls } = fakeRpc({});
+  const a = createApi(rpc);
+  await a.searchPlayers('dud');
+  await a.sendFriend('u2');
+  await a.respondFriend('u2', true);
+  await a.removeFriend('u2');
+  await a.friends();
+  await a.playerCollection('u2');
+  expect(calls).toEqual([
+    { fn: 'search_players', args: { p_query: 'dud' } },
+    { fn: 'send_friend_request', args: { p_user: 'u2' } },
+    { fn: 'respond_friend_request', args: { p_user: 'u2', p_accept: true } },
+    { fn: 'remove_friend', args: { p_user: 'u2' } },
+    { fn: 'get_friends', args: undefined },
+    { fn: 'get_player_collection', args: { p_user: 'u2' } },
+  ]);
+});
+
+test('friends lists come with signed avatars and empty lists when the server sends nothing', async () => {
+  const { rpc } = fakeRpc({ get_friends: { data: { friends: [{ id: 'u2', nickname: 'bia', avatar_url: 'u2/a.webp', level: 3 }], incoming: [], outgoing: null } } });
+  const sign = async (_b: string, paths: string[]) => Object.fromEntries(paths.map((p) => [p, `https://signed/${p}`]));
+  const f = await createApi(rpc, sign).friends();
+  expect(f.friends[0].avatar_url).toBe('https://signed/u2/a.webp');
+  expect(f.outgoing).toEqual([]);
+});
+
+test('another player collection: owned-by-me cards are full, the rest stay locked', async () => {
+  const { rpc } = fakeRpc({
+    get_player_collection: { data: [{ quantity: 2, card: dbCard }, { quantity: 1, card: { id: 'c9', number: 9, odds_n: 50, active: true } }] },
+  });
+  const [a, b] = await createApi(rpc).playerCollection('u2');
+  expect(a.known && a.card.title).toBe('O grampeador');
+  expect(b.known).toBe(false);
+  expect('joke' in b.card).toBe(false);
+  expect(b.quantity).toBe(1);
+});
+
+test('admin card delete and coin changes call their RPCs with the right argument names', async () => {
+  const { rpc, calls } = fakeRpc({ admin_delete_card: { data: { owners: 3, image_path: 'a.webp' } } });
+  const a = createApi(rpc);
+  const d = await a.adminDeleteCard('c1');
+  await a.adminSetCoins('u1', 500, 'teste');
+  await a.adminAdjustCoins('u1', -20, 'multa');
+  await a.adminListPlayers();
+  expect(d).toEqual({ owners: 3, image_path: 'a.webp' });
+  expect(calls).toEqual([
+    { fn: 'admin_delete_card', args: { p_card: 'c1' } },
+    { fn: 'admin_set_coins', args: { p_user: 'u1', p_coins: 500, p_reason: 'teste' } },
+    { fn: 'admin_adjust_coins', args: { p_user: 'u1', p_amount: -20, p_reason: 'multa' } },
+    { fn: 'admin_list_players', args: undefined },
+  ]);
+});

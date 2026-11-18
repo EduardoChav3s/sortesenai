@@ -115,3 +115,8 @@ export async function fetchRole() {
   const { data } = await supabase!.from('profiles').select('role').maybeSingle();
   return (data?.role as 'player' | 'admin' | undefined) ?? 'player';
 }
+
+/** Removes a stored image (admin: a deleted card's art). Failing here only leaves an unused file. */
+export async function removeImage(bucket: 'cards' | 'profile' | 'suggestions', path: string) {
+  await supabase!.storage.from(bucket).remove([path]);
+}

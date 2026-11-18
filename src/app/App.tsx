@@ -24,6 +24,8 @@ import { SuggestPage } from '@/features/suggest/SuggestPage';
 import { AdminPage } from '@/features/admin/AdminPage';
 import { MorePage } from '@/features/more/MorePage';
 import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage';
+import { FriendsPage } from '@/features/friends/FriendsPage';
+import { PlayerPage } from '@/features/player/PlayerPage';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000 } } });
 
@@ -47,6 +49,8 @@ export function App() {
           <Route path="ideia" element={<SuggestPage />} />
           <Route path="sugerir" element={<Navigate to="/ideia" replace />} />
           <Route path="artefatos" element={<ArtifactsPage />} />
+          <Route path="amigos" element={<FriendsPage />} />
+          <Route path="jogador/:id" element={<PlayerPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="mais" element={<MorePage />} />
         </Route>

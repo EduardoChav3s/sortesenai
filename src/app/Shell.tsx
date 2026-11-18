@@ -2,7 +2,9 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { formatCoins, formatLuck } from '@/lib/format';
 import { ME, WALLET } from '@/design/sample';
-import { isLive, useClaimDaily, useDailyStatus, playerChip, useLuck, useMyProfile, useRole, useWallet } from '@/data/live';
+import { isLive, useClaimDaily, useDailyStatus, playerChip, useFriends, useLevel, useLuck, useMyProfile, useRole, useWallet } from '@/data/live';
+import { Avatar } from '@/ui/Avatar';
+import { levelProgress } from '@/lib/level';
 import {
   IconBag,
   IconBulb,
@@ -15,6 +17,7 @@ import {
   IconRoll,
   IconShield,
   IconSparkle,
+  IconFriends,
   IconTrophy,
 } from '@/ui/icons';
 import s from './Shell.module.css';
@@ -39,6 +42,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Turma',
     items: [
+      { to: '/amigos', label: 'Amigos', icon: IconFriends },
       { to: '/ranking', label: 'Ranking', icon: IconTrophy },
       { to: '/ideia', label: 'Dar ideia', icon: IconBulb },
     ],
@@ -61,6 +65,7 @@ const SECTION: Record<string, Sec> = {
   "/ranking": sec("ranking", "light"),
   "/ideia": sec("suggest", "dark"),
   "/artefatos": sec("artifacts", "light"),
+  "/amigos": sec("friends", "dark"),
   "/perfil": sec("profile", "dark"),
   "/admin": NEUTRAL,
   "/mais": NEUTRAL,
@@ -88,6 +93,7 @@ const TITLES: Record<string, string> = {
   '/ranking': 'Ranking',
   '/ideia': 'Dar ideia',
   '/artefatos': 'Artefatos',
+  '/amigos': 'Amigos',
   '/perfil': 'Perfil',
   '/admin': 'Admin',
   '/mais': 'Mais',
@@ -132,14 +138,20 @@ function DailyButton() {
 }
 
 export function Shell() {
-  const { pathname } = useLocation();
-  const title = TITLES[pathname] ?? 'SorteSenai';
+  const { pathname: path } = useLocation();
+  // Another player's page borrows the profile section color and title.
+  const pathname = path.startsWith('/jogador/') ? '/perfil' : path;
+  const title = path.startsWith('/jogador/') ? 'Jogador' : TITLES[pathname] ?? 'SorteSenai';
+  const friends = useFriends();
+  const incoming = friends.data?.incoming.length ?? 0;
   const wallet = useWallet();
   const coins = wallet.data?.coins ?? (isLive ? 0 : WALLET.coins);
   const myName = wallet.data?.nickname ?? ME.name;
   const luck = useLuck();
   const profile = useMyProfile();
-  const chip = isLive ? playerChip('me', myName) : ME;
+  const chip = isLive ? playerChip('me', myName, profile.data?.profile.avatar_url ?? null) : { ...ME, avatar: null };
+  const level = useLevel();
+  const lv = isLive ? level.data : { xp: 450, level: 3, level_start: 300, next_at: 600, reward: 0 };
   const myTitle = isLive ? profile.data?.profile.title_name ?? 'Sem título' : ME.title;
   const role = useRole();
   const showAdmin = !isLive || role.data === 'admin';
@@ -161,6 +173,11 @@ export function Shell() {
                         <Icon size={18} />
                       </span>
                       <span>{label}</span>
+                      {to === '/amigos' && incoming > 0 && (
+                        <span className={s.navCount} aria-label={`${incoming} pedidos de amizade`}>
+                          {incoming}
+                        </span>
+                      )}
                     </NavLink>
                   </li>
                 ))}
@@ -178,13 +195,20 @@ export function Shell() {
           </NavLink>
           )}
           <NavLink to="/perfil" aria-label="Seu perfil" className={({ isActive }) => `${s.me} ${isActive ? s.meActive : ""}`}>
-            <span className="avatar" style={{ '--hue': chip.hue, '--size': '40px' } as CSSProperties}>
-              {chip.initials}
+            <span className={s.meAvatar}>
+              <Avatar initials={chip.initials} hue={chip.hue} size="40px" url={chip.avatar} />
+              {lv && <span className={s.meLevel} aria-label={`Nível ${lv.level}`}>{lv.level}</span>}
             </span>
             <span className={s.meText}>
               <strong>{myName}</strong>
               <span>{myTitle}</span>
+              {lv && (
+                <span className={s.meXp} aria-hidden="true">
+                  <span style={{ inlineSize: `${levelProgress(lv)}%` }} />
+                </span>
+              )}
             </span>
+            {lv && lv.reward > 0 && <span className={s.meDot} title="Prêmio de nível para pegar" />}
           </NavLink>
         </div>
       </aside>

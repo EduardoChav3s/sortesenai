@@ -3,7 +3,10 @@ import { CardView } from '@/ui/CardView';
 import { COLLECTION, ME } from '@/design/sample';
 import { formatOdds } from '@/lib/format';
 import { IconUpload } from '@/ui/icons';
-import { isLive, playerChip, useMyProfile, useUpdateProfile } from '@/data/live';
+import { isLive, playerChip, useClaimLevel, useLevel, useMyProfile, useUpdateProfile } from '@/data/live';
+import { Avatar } from '@/ui/Avatar';
+import { levelProgress } from '@/lib/level';
+import { formatCoins } from '@/lib/format';
 import { isApiError } from '@/data/errors';
 import { checkImage } from '@/data/upload';
 import type { CollectionEntry } from '@/data/types';
@@ -53,6 +56,44 @@ function EditForm({ nickname, bio, onDone }: { nickname: string; bio: string; on
   );
 }
 
+const XP_WAYS = ['Roletar: +10', 'Carta nova: +25', 'Jogo terminado: +15', 'Giro no caça-níquel: +5', 'Bônus diário: +20'];
+
+/** Account level: progress bar, XP and the coins waiting for each new level. */
+function LevelPanel() {
+  const level = useLevel();
+  const claim = useClaimLevel();
+  const lv = isLive ? level.data : { xp: 450, level: 3, level_start: 300, next_at: 600, reward: 150 };
+  if (!lv) return null;
+  const pct = levelProgress(lv);
+  return (
+    <section className={`panel ${s.level}`} aria-labelledby="level-title">
+      <div className={s.levelHead}>
+        <span className={s.levelBadge}>{lv.level}</span>
+        <div className={s.levelText}>
+          <h2 id="level-title" className={s.levelTitle}>
+            Nível {lv.level}
+          </h2>
+          <p className={s.levelSub}>
+            {formatCoins(lv.xp - lv.level_start)} de {formatCoins(lv.next_at - lv.level_start)} XP para o nível {lv.level + 1}
+          </p>
+        </div>
+        {lv.reward > 0 ? (
+          <button type="button" className="btn btn-primary" disabled={claim.isPending || !isLive} onClick={() => claim.mutate()}>
+            {claim.isPending ? 'Pegando…' : `Pegar ${formatCoins(lv.reward)} moedas`}
+          </button>
+        ) : claim.isSuccess ? (
+          <span role="status" className={s.levelGain}>+{formatCoins(claim.data.gained)} moedas</span>
+        ) : null}
+      </div>
+      <div className="progress" style={{ '--value': `${pct}%` } as CSSProperties} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso do nível">
+        <span />
+      </div>
+      <p className={s.levelWays}>Cada nível novo dá 50 × o nível em moedas. XP vem de: {XP_WAYS.join(' · ')}.</p>
+      {claim.isError && <p role="alert" className={s.error}>Não deu para pegar o prêmio. Tente de novo.</p>}
+    </section>
+  );
+}
+
 export function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
@@ -64,12 +105,20 @@ export function ProfilePage() {
     if (problem || !isLive) return;
     update.mutate({ banner: file }, { onError: (e) => setBannerError(saveError(e)) });
   }
+  function pickPhoto(file: File | undefined) {
+    if (!file) return;
+    const problem = checkImage(file);
+    setBannerError(problem);
+    if (problem || !isLive) return;
+    update.mutate({ photo: file }, { onError: (e) => setBannerError(saveError(e)) });
+  }
   function chooseTitle(id: string | null) {
     if (isLive) update.mutate({ title_id: id });
   }
   const live = useMyProfile();
   const p = live.data;
-  const me = isLive && p ? { ...playerChip(p.profile.id, p.profile.nickname), title: p.profile.title_name } : ME;
+  const me = isLive && p ? { ...playerChip(p.profile.id, p.profile.nickname, p.profile.avatar_url), title: p.profile.title_name } : { ...ME, avatar: null };
+  const sendingPhoto = update.isPending && !!update.variables?.photo;
   const bio = isLive ? p?.profile.bio || 'Sem bio ainda.' : '[exemplo] Ainda atrás do grampeador mítico. Aceito poções emprestadas.';
   const stats = isLive
     ? { pulls: p?.stats.pulls ?? 0, pct: p?.stats.collection_pct ?? 0, rarest: p?.stats.rarest_odds ?? null }
@@ -101,11 +150,21 @@ export function ProfilePage() {
           </label>
         </div>
         <div className={s.who}>
-          <span className={s.avatarRing}>
-            <span className="avatar" style={{ '--hue': me.hue, '--size': '96px' } as CSSProperties}>
-              {me.initials}
-            </span>
-          </span>
+          <label className={s.avatarRing} title="Trocar foto">
+            <Avatar initials={me.initials} hue={me.hue} size="96px" url={me.avatar} />
+            <span className={s.photoBtn}>{sendingPhoto ? 'Enviando…' : 'Trocar foto'}</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="visually-hidden"
+              aria-label="Trocar foto de perfil"
+              disabled={update.isPending}
+              onChange={(e) => {
+                pickPhoto(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </label>
           <div className={s.id}>
             <h2 className={s.name}>{me.name}</h2>
             {me.title && <span className={s.title}>{me.title}</span>}
@@ -124,6 +183,8 @@ export function ProfilePage() {
         )}
       </section>
       {editing && <EditForm nickname={me.name} bio={isLive ? p?.profile.bio ?? '' : ''} onDone={() => setEditing(false)} />}
+
+      <LevelPanel />
 
       <div className={s.stats}>
         <div className={`panel ${s.stat}`}>

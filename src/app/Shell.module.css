@@ -90,3 +90,21 @@
   .tabActive { color: var(--color-ink); background: var(--sec); }
 }
 .meActive, .meActive:hover { background: var(--color-paper-3); box-shadow: var(--shadow-card); }
+
+/* account level on the player chip */
+.me { position: relative; }
+.meAvatar { position: relative; flex: none; }
+.meLevel {
+  position: absolute; inset-block-end: -4px; inset-inline-end: -6px; min-inline-size: 20px; block-size: 20px; padding: 0 5px;
+  display: grid; place-items: center; border-radius: var(--radius-pill);
+  font: 800 11px/1 var(--font-display); color: var(--color-coin-ink); background: var(--color-coin); box-shadow: 0 0 0 2px var(--color-paper-3);
+}
+.meText .meXp { display: block; inline-size: 100%; block-size: 4px; margin-block-start: 3px; border-radius: var(--radius-pill); background: var(--color-rule); overflow: hidden; }
+.meXp > span { display: block; block-size: 100%; border-radius: inherit; background: var(--color-coin); }
+.meDot { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--color-error); box-shadow: 0 0 0 2px var(--color-paper-3); }
+
+/* friend requests waiting */
+.navCount {
+  margin-inline-start: auto; display: inline-grid; place-items: center; min-inline-size: 20px; block-size: 20px; padding: 0 6px;
+  border-radius: var(--radius-pill); font: 800 11px/1 var(--font-body); color: var(--color-accent-ink, #fff); background: var(--color-error);
+}

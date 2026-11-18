@@ -20,6 +20,8 @@
 
 .btn-primary { --btn-bg: var(--color-accent); --btn-ledge: var(--color-accent-deep); --btn-ink: var(--color-accent-ink); }
 .btn-primary:hover { --btn-bg: color-mix(in oklab, var(--color-accent) 90%, var(--color-highlight)); }
+.btn-danger { --btn-bg: var(--color-error); --btn-ledge: color-mix(in oklab, var(--color-error) 70%, var(--color-ink)); --btn-ink: oklch(99% 0.005 27); }
+.btn-danger:hover { --btn-bg: color-mix(in oklab, var(--color-error) 88%, var(--color-ink)); }
 .btn-secondary { --btn-ledge: var(--color-rule); box-shadow: inset 0 0 0 2px var(--color-rule), 0 4px 0 var(--btn-ledge); }
 .btn-secondary:hover { box-shadow: inset 0 0 0 2px var(--color-ink-2), 0 5px 0 var(--color-ink-2); }
 .btn-secondary:active { box-shadow: inset 0 0 0 2px var(--color-ink-2), 0 0 0 var(--color-ink-2); }
@@ -76,6 +78,9 @@
   font: 800 calc(var(--size, 40px) * 0.36)/1 var(--font-display); color: oklch(99% 0.005 var(--hue));
   background: oklch(60% 0.15 var(--hue)); box-shadow: 0 0 0 3px var(--surface);
 }
+/* the photo fills the circle whatever its size or shape; it never stretches the avatar */
+.avatar:has(img) { position: relative; overflow: hidden; }
+.avatar img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border-radius: 50%; object-fit: cover; display: block; }
 
 /* ---------- page scaffolding ---------- */
 .page { display: grid; gap: var(--space-xl); padding-block: var(--space-lg) var(--space-3xl); }

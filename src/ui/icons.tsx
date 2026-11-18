@@ -103,3 +103,11 @@ export const IconSparkle = (p: IconProps) => (
     <path d="M12 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7Z" />
   </svg>
 );
+export const IconFriends = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="9" cy="8.5" r="3.2" />
+    <path d="M3 19.5a6 6 0 0 1 12 0" />
+    <circle cx="16.5" cy="9.5" r="2.6" />
+    <path d="M15.5 14.2a5 5 0 0 1 5.5 5.3" />
+  </svg>
+);
