@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthGate } from '@/auth/AuthGate';
 import { authDeps } from '@/data/client';
@@ -23,6 +23,7 @@ import { ProfilePage } from '@/features/profile/ProfilePage';
 import { SuggestPage } from '@/features/suggest/SuggestPage';
 import { AdminPage } from '@/features/admin/AdminPage';
 import { MorePage } from '@/features/more/MorePage';
+import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000 } } });
 
@@ -43,7 +44,9 @@ export function App() {
           <Route path="loja" element={<ShopPage />} />
           <Route path="ranking" element={<RankingPage />} />
           <Route path="perfil" element={<ProfilePage />} />
-          <Route path="sugerir" element={<SuggestPage />} />
+          <Route path="ideia" element={<SuggestPage />} />
+          <Route path="sugerir" element={<Navigate to="/ideia" replace />} />
+          <Route path="artefatos" element={<ArtifactsPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="mais" element={<MorePage />} />
         </Route>

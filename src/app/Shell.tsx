@@ -14,6 +14,7 @@ import {
   IconMore,
   IconRoll,
   IconShield,
+  IconSparkle,
   IconTrophy,
 } from '@/ui/icons';
 import s from './Shell.module.css';
@@ -32,13 +33,14 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/colecao', label: 'Coleção', icon: IconCards },
       { to: '/jogos', label: 'Jogos', icon: IconGame },
       { to: '/loja', label: 'Loja', icon: IconBag },
+      { to: '/artefatos', label: 'Artefatos', icon: IconSparkle },
     ],
   },
   {
     label: 'Turma',
     items: [
       { to: '/ranking', label: 'Ranking', icon: IconTrophy },
-      { to: '/sugerir', label: 'Sugerir piada', icon: IconBulb },
+      { to: '/ideia', label: 'Dar ideia', icon: IconBulb },
     ],
   },
 ];
@@ -57,7 +59,8 @@ const SECTION: Record<string, Sec> = {
   "/jogos": sec("games", "dark"),
   "/loja": sec("shop", "dark"),
   "/ranking": sec("ranking", "light"),
-  "/sugerir": sec("suggest", "dark"),
+  "/ideia": sec("suggest", "dark"),
+  "/artefatos": sec("artifacts", "light"),
   "/perfil": sec("profile", "dark"),
   "/admin": NEUTRAL,
   "/mais": NEUTRAL,
@@ -83,7 +86,8 @@ const TITLES: Record<string, string> = {
   '/jogos': 'Jogos',
   '/loja': 'Loja',
   '/ranking': 'Ranking',
-  '/sugerir': 'Sugerir piada',
+  '/ideia': 'Dar ideia',
+  '/artefatos': 'Artefatos',
   '/perfil': 'Perfil',
   '/admin': 'Admin',
   '/mais': 'Mais',

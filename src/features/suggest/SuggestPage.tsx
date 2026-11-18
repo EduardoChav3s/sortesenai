@@ -33,11 +33,11 @@ export function SuggestPage() {
   }
   return (
     <div className="page">
-      <p className="page-sub">Conta a piada, o admin decide a raridade. Se entrar, ela vira carta para a turma inteira.</p>
+      <p className="page-sub">Dá a ideia de uma carta nova: conta a piada, o admin decide a raridade. Se entrar, vira carta para a turma inteira.</p>
       <div className={s.layout}>
         <form className={`panel ${s.form}`} onSubmit={(e) => (e.preventDefault(), send())}>
           <div className="field">
-            <label htmlFor="joke">A piada</label>
+            <label htmlFor="joke">Sua ideia</label>
             <textarea id="joke" className="input" placeholder="Ex.: o dia em que o projetor ligou sozinho no meio da prova" maxLength={280} value={text} onChange={(e) => (setText(e.target.value), setDone(false))} />
             <span className="hint">De 10 a 280 caracteres.</span>
           </div>
@@ -56,21 +56,21 @@ export function SuggestPage() {
             />
           </label>
           <div className={s.formFoot}>
-            <span className="hint">Só a turma convidada vê as sugestões.</span>
+            <span className="hint">Só a turma convidada vê as ideias.</span>
             {done && <span role="status" className="hint">Enviada! O admin vai avaliar.</span>}
             {create.isError && <span role="alert" className="hint" style={{ color: 'var(--color-error)' }}>Não deu para enviar. Tente de novo.</span>}
             <button type="submit" className="btn btn-primary" disabled={tooShort || create.isPending}>
-              Enviar sugestão
+              Enviar ideia
             </button>
           </div>
         </form>
 
         <section className={`panel ${s.list}`} aria-labelledby="mine">
           <h2 id="mine" className="section-title">
-            Suas sugestões
+            Suas ideias
           </h2>
           <ul className={s.items}>
-            {list.length === 0 && <li className="hint">Você ainda não sugeriu nenhuma piada.</li>}
+            {list.length === 0 && <li className="hint">Você ainda não deu nenhuma ideia.</li>}
             {list.map((sug) => (
               <li key={sug.id} className={s.item}>
                 <span className={`status ${STATUS[sug.status].cls}`}>{STATUS[sug.status].label}</span>

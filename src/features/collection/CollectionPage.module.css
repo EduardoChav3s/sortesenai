@@ -9,3 +9,18 @@
 
 .empty { padding: var(--space-xl); text-align: center; display: grid; gap: var(--space-xs); justify-items: center; color: var(--color-muted); }
 .emptyTitle { font: 800 var(--text-lg)/1.2 var(--font-display); color: var(--color-ink); }
+
+/* repeated cards: trade the spares for coins */
+.dupes { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) var(--space-lg); }
+.dupesText { display: grid; gap: 4px; flex: 1 1 18rem; }
+.dupesTitle { font: 800 var(--text-lg)/1.15 var(--font-display); }
+.dupesNote { color: var(--color-muted); font-size: var(--text-sm); }
+.soon { font-size: var(--text-xs); color: var(--color-muted); }
+.dupesAction { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.gain { font: 800 var(--text-sm)/1 var(--font-display); color: var(--color-coin-ink); background: var(--color-coin); padding: 0.4rem 0.7rem; border-radius: var(--radius-pill); }
+.price {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0.25rem 0.5rem 0.25rem 0.35rem; border-radius: var(--radius-pill);
+  font: 800 var(--text-xs)/1 var(--font-body); color: var(--color-coin-ink); background: var(--color-coin);
+}
+.tradeOne { inline-size: 100%; margin-block-start: var(--space-xs); justify-content: center; }
+.error { flex-basis: 100%; color: var(--color-error); font-weight: 600; font-size: var(--text-sm); }

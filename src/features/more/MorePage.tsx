@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { IconBulb, IconShield, IconTrophy, IconUser } from '@/ui/icons';
+import { IconBulb, IconShield, IconSparkle, IconTrophy, IconUser } from '@/ui/icons';
 
 const LINKS = [
+  { to: '/artefatos', label: 'Artefatos', icon: IconSparkle },
   { to: '/ranking', label: 'Ranking', icon: IconTrophy },
-  { to: '/sugerir', label: 'Sugerir piada', icon: IconBulb },
+  { to: '/ideia', label: 'Dar ideia', icon: IconBulb },
   { to: '/perfil', label: 'Perfil', icon: IconUser },
   { to: '/admin', label: 'Admin', icon: IconShield },
 ];

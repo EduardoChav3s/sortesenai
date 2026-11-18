@@ -172,3 +172,16 @@ export function useAdminActions() {
 
 /** Avatar chip for a real player: initials and a stable color from the nickname. */
 export const playerChip = (id: string, nickname: string) => ({ id, name: nickname, initials: nickname.slice(0, 2).toUpperCase(), hue: hueOf(nickname), title: null as string | null });
+
+/** Trades repeated cards for coins, one card at a time. Keeps what worked if one fails. */
+export function useRecycle() {
+  const inv = useInvalidate();
+  return useMutation({
+    mutationFn: async (list: { id: string; quantity: number }[]) => {
+      let gained = 0;
+      for (const it of list) gained += Number((await api!.recycle(it.id, it.quantity)).gained);
+      return { gained };
+    },
+    onSettled: () => inv('wallet', 'collection', 'ranking', 'profile'),
+  });
+}

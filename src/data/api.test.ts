@@ -139,3 +139,10 @@ test('games and card image call their RPCs with the right argument names', async
     { fn: 'admin_upsert_card', args: { p: { title: 't', joke: 'j', odds_n: 50, image_path: 'x.webp' } } },
   ]);
 });
+
+test('recycle sends the card and how many to trade', async () => {
+  const { rpc, calls } = fakeRpc({ recycle: { data: { gained: 10, coins_after: 60 } } });
+  const r = await createApi(rpc).recycle('c1', 2);
+  expect(calls).toEqual([{ fn: 'recycle', args: { p_card: 'c1', p_quantity: 2 } }]);
+  expect(r.gained).toBe(10);
+});

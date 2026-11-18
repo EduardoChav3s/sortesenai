@@ -104,6 +104,7 @@ export function createApi(rpc: Rpc, sign?: Sign) {
     ranking: (kind: RankingKind) => call<RankingEntry[]>('get_ranking', { p_kind: kind }),
     gameLimits: () => call<Record<GameId, { limit: number; earned_today: number }>>('get_game_limits'),
     playSlots: (bet: number) => call<{ reels: string[]; payout: number; capped: boolean; coins_after: number }>('play_slots', { p_bet: bet }),
+    recycle: (cardId: string, quantity: number) => call<{ gained: number; coins_after: number }>('recycle', { p_card: cardId, p_quantity: quantity }),
     buyItem: (id: string) => call<{ coins_after: number }>('buy_item', { p_item: id }),
     usePotion: (id: string) => call<object>('use_potion', { p_item: id }),
     buyTitle: (id: string) => call<{ coins_after: number }>('buy_title', { p_title: id }),
