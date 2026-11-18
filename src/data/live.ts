@@ -334,3 +334,28 @@ export function useMusicActions() {
     }),
   };
 }
+
+// ---------------------------------------------------------------- admin: game settings and shop
+import { fetchSettings } from './client';
+export const useGameSettings = () => useQuery({ queryKey: ['settings'], queryFn: fetchSettings, enabled: isLive });
+export const useAdminMissionDefs = () => useQuery({ queryKey: ['mission-defs'], queryFn: () => api!.adminMissionDefs(), enabled: isLive, staleTime: Infinity });
+export const useAdminItems = () => useQuery({ queryKey: ['admin-items'], queryFn: () => api!.adminListItems(), enabled: isLive });
+export const useAdminTitles = () => useQuery({ queryKey: ['admin-titles'], queryFn: () => api!.adminListTitles(), enabled: isLive });
+
+export function useAdminGameActions() {
+  const inv = useInvalidate();
+  return {
+    saveSettings: useMutation({
+      mutationFn: (patch: Record<string, unknown>) => api!.adminUpdateSettings(patch),
+      onSettled: () => inv('settings', 'missions', 'event', 'limits', 'daily'),
+    }),
+    saveItem: useMutation({
+      mutationFn: (p: Parameters<NonNullable<typeof api>['adminUpsertItem']>[0]) => api!.adminUpsertItem(p),
+      onSettled: () => inv('admin-items', 'shop'),
+    }),
+    saveTitle: useMutation({
+      mutationFn: (p: Parameters<NonNullable<typeof api>['adminUpsertTitle']>[0]) => api!.adminUpsertTitle(p),
+      onSettled: () => inv('admin-titles', 'shop'),
+    }),
+  };
+}

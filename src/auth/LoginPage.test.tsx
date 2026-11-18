@@ -11,6 +11,8 @@ function deps(over: Partial<LoginDeps> = {}): LoginDeps & { calls: string[] } {
     signUp: async (e) => (calls.push(`signup:${e}`), { needsConfirm: true }),
     isAdmin: async () => true,
     signOut: async () => void calls.push('signout'),
+    resetPassword: async (e) => void calls.push(`reset:${e}`),
+    updatePassword: async () => void calls.push('update'),
     ...over,
   };
 }
@@ -97,4 +99,23 @@ test('admin login blocks a player who is not admin and signs them out', async ()
   expect(await screen.findByRole('alert')).toHaveTextContent(/não é admin/i);
   expect(d.calls).toContain('signout');
   expect(onAdmin).not.toHaveBeenCalled();
+});
+
+test('forgot password sends a reset link to the typed e-mail', async () => {
+  const d = deps();
+  render(<LoginPage deps={d} />);
+  await userEvent.click(screen.getByRole('button', { name: /esqueci minha senha/i }));
+  await userEvent.type(screen.getByLabelText(/e-mail/i), 'Duda@Turma.test');
+  await userEvent.click(screen.getByRole('button', { name: /mandar link/i }));
+  expect(d.calls).toEqual(['reset:duda@turma.test']);
+  expect(await screen.findByText(/confira seu e-mail/i)).toBeInTheDocument();
+});
+
+test('forgot password asks for the e-mail first', async () => {
+  const d = deps();
+  render(<LoginPage deps={d} />);
+  await userEvent.click(screen.getByRole('button', { name: /esqueci minha senha/i }));
+  await userEvent.click(screen.getByRole('button', { name: /mandar link/i }));
+  expect(d.calls).toEqual([]);
+  expect(screen.getByRole('alert')).toHaveTextContent(/digite seu e-mail/i);
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { decideGate } from './gate';
 import { LoginPage, type LoginDeps } from './LoginPage';
 import { LoginMusic } from './LoginMusic';
@@ -27,6 +27,52 @@ function Screen({ title, text, children }: { title: string; text: string; childr
         {children}
       </div>
     </main>
+  );
+}
+
+/** Opened from the reset e-mail: Supabase has signed the player in; they choose a new password here. */
+function NewPassword({ save }: { save: (pw: string) => Promise<void> }) {
+  const [pw, setPw] = useState('');
+  const [again, setAgain] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (pw.length < 8) return setError('A senha precisa ter pelo menos 8 caracteres.');
+    if (pw !== again) return setError('As duas senhas não são iguais.');
+    setBusy(true);
+    setError(null);
+    try {
+      await save(pw);
+      window.history.replaceState({}, '', '/');
+      window.location.assign('/');
+    } catch {
+      setError('Não deu para salvar. O link pode ter vencido: peça outro na tela de login.');
+      setBusy(false);
+    }
+  }
+  return (
+    <Screen title="Crie uma nova senha" text="Depois de salvar, você já entra no álbum.">
+      <form className={s.form} onSubmit={submit} noValidate>
+        <div className="field">
+          <label htmlFor="new-pw">Nova senha</label>
+          <input id="new-pw" className="input" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+          <span className="hint">Pelo menos 8 caracteres.</span>
+        </div>
+        <div className="field">
+          <label htmlFor="new-pw-2">Repita a senha</label>
+          <input id="new-pw-2" className="input" type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
+        </div>
+        {error && (
+          <p role="alert" className={s.error}>
+            {error}
+          </p>
+        )}
+        <button type="submit" className="btn btn-primary" disabled={busy}>
+          {busy ? 'Salvando…' : 'Salvar senha'}
+        </button>
+      </form>
+    </Screen>
   );
 }
 
@@ -74,6 +120,7 @@ export function AuthGate({ deps, children }: { deps: AuthDeps | null; children: 
   }, [deps, signedIn, attempt]);
 
   const gate = decideGate({ configured: !!deps, signedIn, access });
+  if (deps && signedIn && window.location.pathname === '/nova-senha') return <NewPassword save={(pw) => deps.updatePassword(pw)} />;
   if (gate === 'demo' || gate === 'app') return <>{children}</>;
   if (gate === 'loading' && failed)
     return (

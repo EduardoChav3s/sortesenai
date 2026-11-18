@@ -13,8 +13,11 @@ const previewDeps = {
   signUp: async () => ({ needsConfirm: true }),
   isAdmin: async () => false,
   signOut: async () => {},
+  resetPassword: async () => {},
+  updatePassword: async () => {},
 };
 import { Shell } from './Shell';
+import { ErrorScreen, NotFoundPage } from './Problems';
 import { RollPage } from '@/features/roll/RollPage';
 import { CollectionPage } from '@/features/collection/CollectionPage';
 import { GamesPage } from '@/features/games/GamesPage';
@@ -42,6 +45,7 @@ export function App() {
     document.title = 'SorteSenai';
   }, []);
   return (
+    <ErrorScreen>
     <QueryClientProvider client={queryClient}>
     <AuthGate deps={authDeps}>
     <BrowserRouter>
@@ -58,6 +62,7 @@ export function App() {
           <Route path="artefatos" element={<ArtifactsPage />} />
           <Route path="amigos" element={<FriendsPage />} />
           <Route path="jogador/:id" element={<PlayerPage />} />
+          <Route path="*" element={<NotFoundPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="mais" element={<MorePage />} />
         </Route>
@@ -65,5 +70,6 @@ export function App() {
     </BrowserRouter>
     </AuthGate>
     </QueryClientProvider>
+    </ErrorScreen>
   );
 }

@@ -24,6 +24,10 @@ export interface LoginDeps {
   signUp(email: string, password: string): Promise<{ needsConfirm: boolean }>;
   isAdmin(): Promise<boolean>;
   signOut(): Promise<void>;
+  /** Sends a "choose a new password" link to the e-mail. */
+  resetPassword(email: string): Promise<void>;
+  /** Saves a new password for the signed-in account (after the reset link). */
+  updatePassword(password: string): Promise<void>;
 }
 
 const MESSAGES: Record<LoginErrorCode, string> = {
@@ -76,8 +80,20 @@ export function LoginPage({ deps, onAdmin }: { deps: LoginDeps; onAdmin?: () => 
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const creating = !admin && tab === 'criar';
+
+  function askReset(ev: FormEvent) {
+    ev.preventDefault();
+    const mail = email.trim().toLowerCase();
+    if (!mail) return setError('Digite seu e-mail.');
+    return run(async () => {
+      await deps.resetPassword(mail);
+      setResetSent(true);
+    });
+  }
 
   function switchTab(t: Tab) {
     setTab(t);
@@ -164,7 +180,38 @@ export function LoginPage({ deps, onAdmin }: { deps: LoginDeps; onAdmin?: () => 
           </header>
         )}
 
-        {sent ? (
+        {forgot ? (
+          resetSent ? (
+            <div className={s.sent} role="status">
+              <p className={s.sentTitle}>Confira seu e-mail</p>
+              <p>
+                Se existir uma conta com <strong>{email.trim().toLowerCase()}</strong>, chega um link para criar uma senha nova. Pode levar alguns minutos e cair no spam.
+              </p>
+              <button type="button" className="btn btn-secondary" onClick={() => (setForgot(false), setResetSent(false), setError(null))}>
+                Voltar para Entrar
+              </button>
+            </div>
+          ) : (
+            <form className={s.form} onSubmit={askReset} noValidate>
+              <p className={s.sub}>Digite o e-mail da sua conta. Mandamos um link para criar uma senha nova.</p>
+              <div className="field">
+                <label htmlFor="reset-email">E-mail</label>
+                <input id="reset-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              {error && (
+                <p role="alert" className={s.error}>
+                  {error}
+                </p>
+              )}
+              <button type="submit" className={`btn btn-primary ${s.submit}`} disabled={busy}>
+                {busy ? 'Mandando…' : 'Mandar link'}
+              </button>
+              <button type="button" className={s.link} onClick={() => (setForgot(false), setError(null))}>
+                Voltar para Entrar
+              </button>
+            </form>
+          )
+        ) : sent ? (
           <div className={s.sent} role="status">
             <p className={s.sentTitle}>Confira seu e-mail</p>
             <p>
@@ -220,6 +267,11 @@ export function LoginPage({ deps, onAdmin }: { deps: LoginDeps; onAdmin?: () => 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                {!creating && (
+                  <button type="button" className={s.forgot} onClick={() => (setForgot(true), setError(null))}>
+                    Esqueci minha senha
+                  </button>
+                )}
               </div>
               {creating && (
                 <div className="field">

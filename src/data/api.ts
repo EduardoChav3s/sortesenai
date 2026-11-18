@@ -99,6 +99,9 @@ export interface AdminSuggestion {
   author: { id: string; nickname: string; avatar_url: string | null } | null;
 }
 
+export interface ShopItemRow { id: string; name: string; description: string; price: number; multiplier: number; duration_minutes: number | null; duration_pulls: number | null; active: boolean }
+export interface ShopTitleRow { id: string; name: string; description: string; price: number | null; active: boolean; condition: { type: string } & Record<string, unknown> }
+
 /** A row of the admin player list (the admin sees every profile field). */
 export interface AdminPlayer {
   id: string;
@@ -313,6 +316,15 @@ export function createApi(rpc: Rpc, sign?: Sign) {
     adminListTracks: async (): Promise<Track[]> => (await call<Track[] | null>('admin_list_tracks')) ?? [],
     adminAddTrack: (title: string, path: string, slot: MusicSlot) => call<Track>('admin_add_track', { p_title: title, p_path: path, p_slot: slot }),
     adminDeleteTrack: (id: string) => call<{ path: string }>('admin_delete_track', { p_id: id }),
+
+    // game settings and shop
+    adminUpdateSettings: (patch: Record<string, unknown>) => call<Record<string, unknown>>('admin_update_settings', { p_patch: patch }),
+    adminMissionDefs: async (): Promise<{ id: string; title: string; goal: number; coins: number }[]> => (await call<{ id: string; title: string; goal: number; coins: number }[] | null>('admin_mission_defs')) ?? [],
+    adminListItems: async (): Promise<ShopItemRow[]> => (await call<ShopItemRow[] | null>('admin_list_items')) ?? [],
+    adminListTitles: async (): Promise<ShopTitleRow[]> => (await call<ShopTitleRow[] | null>('admin_list_titles')) ?? [],
+    adminUpsertItem: (p: Omit<ShopItemRow, 'id'> & { id?: string }) => call<ShopItemRow>('admin_upsert_item', { p }),
+    adminUpsertTitle: (p: { id?: string; name: string; description: string; price: number | null; active: boolean; condition?: unknown }) =>
+      call<ShopTitleRow>('admin_upsert_title', { p }),
 
     adminDeleteCard: (id: string) => call<{ owners: number; image_path: string | null }>('admin_delete_card', { p_card: id }),
     async adminListPlayers(): Promise<AdminPlayer[]> {

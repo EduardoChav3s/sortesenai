@@ -431,6 +431,28 @@ select t.ok(public.admin_delete_track(:'track1')->>'path' = 'login/tema.mp3', 'a
 select t.err(format('select public.admin_delete_track(%L)', :'track1'), 'not_found', 'nao apaga musica que nao existe');
 reset role;
 
+-- ------------------------------------------------------------ admin: game settings, shop, event and missions
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err('select public.admin_list_items()', 'forbidden', 'jogador comum nao ve a loja do admin');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.err($$select public.admin_update_settings('{"missions": ["roll_5", "nao_existe"]}')$$, 'invalid', 'missao desconhecida recusada');
+select t.err($$select public.admin_update_settings('{"event_card": "00000000-0000-0000-0000-000000000999"}')$$, 'invalid', 'carta do evento que nao existe recusada');
+select t.err($$select public.admin_update_settings('{"game_daily_limits": {"slots": -1, "memory": 10, "reflex": 10, "clicker": 10}}')$$, 'invalid', 'limite de jogo negativo recusado');
+select t.ok(public.admin_update_settings('{"missions": ["roll_5", "gift_1", "new_card"]}')->'missions' = '["roll_5", "gift_1", "new_card"]', 'admin fixa as missoes');
+select t.ok(not (public.admin_update_settings('{"missions": null}') ? 'missions'), 'admin volta as missoes para o sorteio');
+select t.ok(jsonb_array_length(public.get_missions()) = 3, 'missoes continuam funcionando depois de desfixar');
+select t.ok(not (public.admin_update_settings('{"event_card": null}') ? 'event_card'), 'admin volta o evento para o sorteio');
+select t.ok(jsonb_array_length(public.admin_mission_defs()) = 8, 'admin ve todas as missoes possiveis');
+select (public.admin_upsert_item('{"name": "Poção escondida", "price": 99, "multiplier": 3, "duration_pulls": 5, "active": false}')->>'id') as hidden_item \gset
+select t.ok(exists (select 1 from jsonb_array_elements(public.admin_list_items()) i where i->>'id' = :'hidden_item' and not (i->>'active')::boolean), 'admin ve item desativado');
+select t.err($$select public.admin_upsert_item('{"name": "Ruim", "price": 10, "multiplier": 1, "duration_pulls": 5}')$$, 'invalid', 'pocao sem efeito recusada');
+select (public.admin_upsert_title('{"name": "Título escondido", "price": 500, "active": false}')->>'id') as hidden_title \gset
+select t.ok(exists (select 1 from jsonb_array_elements(public.admin_list_titles()) x where x->>'id' = :'hidden_title'), 'admin ve titulo desativado');
+reset role;
+
 -- ------------------------------------------------------------ randomness
 select t.ok((select min(x) >= 0 and max(x) < 1 and abs(avg(x) - 0.5) < 0.02 from (select app.rand() x from generate_series(1, 20000)) r),
             'app.rand uniforme em [0,1)');

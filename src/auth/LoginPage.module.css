@@ -88,3 +88,7 @@
 .fan { animation: float 7s var(--ease-in-out) infinite alternate; }
 @keyframes float { from { transform: translateY(-6px); } to { transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .row, .fan { animation: none; } }
+
+.forgot { justify-self: end; padding: 0; border: 0; background: none; cursor: pointer; font: 600 var(--text-xs)/1.4 var(--font-body); color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }
+.forgot:hover { color: var(--color-ink); }
+.forgot:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }

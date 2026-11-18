@@ -8,6 +8,7 @@ import { LiveNotice } from '@/features/roll/Extras';
 import { useQueryClient } from '@tanstack/react-query';
 import { authDeps } from '@/data/client';
 import { SignOutButton } from './SignOutButton';
+import { ErrorScreen } from './Problems';
 import { levelProgress } from '@/lib/level';
 import {
   IconBag,
@@ -254,7 +255,10 @@ export function Shell() {
           </div>
         </header>
         <main className={s.content}>
-          <Outlet />
+          {/* a crash in one page keeps the menu working; a new address gets a fresh try */}
+          <ErrorScreen key={path}>
+            <Outlet />
+          </ErrorScreen>
         </main>
       </div>
 

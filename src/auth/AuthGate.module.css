@@ -6,3 +6,6 @@
 .senai { color: var(--color-senai-red); }
 .title { font: 800 var(--text-xl)/1.1 var(--font-display); margin-top: var(--space-xs); }
 .text { color: var(--color-muted); max-inline-size: 30ch; margin-bottom: var(--space-xs); }
+
+.form { display: grid; gap: var(--space-sm); inline-size: 100%; text-align: start; }
+.error { color: var(--color-error); font-weight: 600; font-size: var(--text-sm); }

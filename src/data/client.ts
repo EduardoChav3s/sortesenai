@@ -68,6 +68,14 @@ export const authDeps: AuthDeps | null = supabase
       async signOut() {
         await supabase.auth.signOut();
       },
+      async resetPassword(email) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/nova-senha` });
+        if (error) throw toLoginError(error);
+      },
+      async updatePassword(password) {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw toLoginError(error);
+      },
       async checkAccess() {
         return (await api!.session()).access;
       },
@@ -148,4 +156,11 @@ export async function uploadAudio(slot: string, file: File): Promise<string> {
 
 export async function removeAudio(path: string) {
   await supabase!.storage.from('music').remove([path]);
+}
+
+/** Game settings (members may read them; only the admin changes them, through admin_update_settings). */
+export async function fetchSettings(): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase!.from('settings').select('value').maybeSingle();
+  if (error) throw error;
+  return (data?.value as Record<string, unknown>) ?? {};
 }

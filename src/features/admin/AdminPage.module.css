@@ -81,3 +81,9 @@ tr[data-banned='true'] td:first-child { opacity: 0.6; }
 .trackTitle { font-weight: 600; font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trackAudio { inline-size: 100%; block-size: 36px; }
 @media (max-width: 40rem) { .track { grid-template-columns: 1fr; } }
+
+/* game rules and shop */
+.gameGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-md); }
+.inline { display: flex; gap: var(--space-xs); }
+.inline .input:first-child { flex: 1; min-inline-size: 0; }
+.missionPick { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--space-xs); }

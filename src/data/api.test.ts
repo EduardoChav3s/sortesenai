@@ -312,3 +312,17 @@ test('music calls its RPCs with the right argument names and never fails on an e
     ['admin_delete_track', { p_id: 'm1' }],
   ]);
 });
+
+test('admin game settings and shop call their RPCs with the right argument names', async () => {
+  const { rpc, calls } = fakeRpc({});
+  const a = createApi(rpc);
+  await a.adminUpdateSettings({ pull_cost: 15 });
+  expect(await a.adminMissionDefs()).toEqual([]);
+  expect(await a.adminListItems()).toEqual([]);
+  expect(await a.adminListTitles()).toEqual([]);
+  await a.adminUpsertItem({ name: 'Gota', description: '', price: 100, multiplier: 2, duration_minutes: 10, duration_pulls: null, active: true });
+  await a.adminUpsertTitle({ name: 'Rei', description: '', price: null, active: true });
+  expect(calls.map((c) => c.fn)).toEqual(['admin_update_settings', 'admin_mission_defs', 'admin_list_items', 'admin_list_titles', 'admin_upsert_item', 'admin_upsert_title']);
+  expect(calls[0].args).toEqual({ p_patch: { pull_cost: 15 } });
+  expect(calls[4].args).toEqual({ p: { name: 'Gota', description: '', price: 100, multiplier: 2, duration_minutes: 10, duration_pulls: null, active: true } });
+});

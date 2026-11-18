@@ -10,6 +10,8 @@ import { rarityTier, TIER_LABEL } from '@/lib/rarity';
 import { isLive, playerChip, useAdminActions, useAdminCards, useAdminPlayers, useAdminSuggestions, useMyProfile, useRole } from '@/data/live';
 import { IdeasTab } from './IdeasTab';
 import { MusicTab } from './MusicTab';
+import { GameTab } from './GameTab';
+import { ShopTab } from './ShopTab';
 import type { AdminPlayer } from '@/data/api';
 import type { CardContent } from '@/data/types';
 import { coinChange, type CoinMode } from './coinChange';
@@ -20,7 +22,7 @@ const SAMPLE_PLAYERS: AdminPlayer[] = [
   { id: 'p1', nickname: 'duda', email: 'duda@exemplo.com', avatar_url: null, coins: 12_480, role: 'admin', banned: false, cards_owned: 31 },
   { id: 'p2', nickname: 'ana', email: 'ana@exemplo.com', avatar_url: null, coins: 4_120, role: 'player', banned: false, cards_owned: 12 },
 ];
-const TABS = ['Cartas', 'Ideias', 'Jogadores', 'Músicas'] as const;
+const TABS = ['Cartas', 'Ideias', 'Jogadores', 'Jogo', 'Loja', 'Músicas'] as const;
 type Tab = (typeof TABS)[number];
 
 /** Object url for a picked file, freed when it changes. */
@@ -440,7 +442,7 @@ export function AdminPage() {
           </button>
         ))}
       </div>
-      {tab === 'Cartas' ? <CardsTab /> : tab === 'Ideias' ? <IdeasTab /> : tab === 'Jogadores' ? <PlayersTab /> : <MusicTab />}
+      {tab === 'Cartas' ? <CardsTab /> : tab === 'Ideias' ? <IdeasTab /> : tab === 'Jogadores' ? <PlayersTab /> : tab === 'Jogo' ? <GameTab /> : tab === 'Loja' ? <ShopTab /> : <MusicTab />}
     </div>
   );
 }
