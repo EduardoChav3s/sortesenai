@@ -1,0 +1,11 @@
+.bar { flex: 0 1 18rem; display: grid; gap: 6px; }
+.pct { font-size: var(--text-sm); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.pct strong { color: var(--color-ink); font-weight: 600; }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-md); }
+
+.grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr)); gap: var(--space-lg) var(--space-md); }
+.card { inline-size: 100%; }
+
+.empty { padding: var(--space-xl); text-align: center; display: grid; gap: var(--space-xs); justify-items: center; color: var(--color-muted); }
+.emptyTitle { font: 800 var(--text-lg)/1.2 var(--font-display); color: var(--color-ink); }

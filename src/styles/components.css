@@ -1,0 +1,110 @@
+/* Shared controls and surfaces for SorteSenai (album world). Tokens live in tokens.css. */
+
+/* ---------- album panel: a white page lifted off the desk ---------- */
+.panel { position: relative; border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow-card); }
+
+/* ---------- buttons: chunky pills with a ledge that presses down ---------- */
+.btn {
+  --btn-bg: var(--surface); --btn-ledge: var(--color-paper-2); --btn-ink: var(--color-ink);
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs);
+  min-block-size: 44px; padding: 0 1.25rem; border: 0; border-radius: var(--radius-control);
+  font: 700 var(--text-sm)/1 var(--font-body); color: var(--btn-ink); background: var(--btn-bg); cursor: pointer; text-decoration: none; white-space: nowrap;
+  box-shadow: 0 4px 0 var(--btn-ledge), 0 4px 12px oklch(23% 0.03 290 / 0.08);
+  transform: translateY(0);
+  transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out), background-color var(--dur-short) var(--ease-out);
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 5px 0 var(--btn-ledge), 0 6px 16px oklch(23% 0.03 290 / 0.1); }
+.btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-ledge), 0 1px 3px oklch(23% 0.03 290 / 0.1); }
+.btn:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; }
+.btn:disabled, .btn[aria-disabled='true'] { cursor: not-allowed; transform: translateY(4px); --btn-bg: var(--color-paper-2); --btn-ink: var(--color-muted); box-shadow: none; }
+
+.btn-primary { --btn-bg: var(--color-accent); --btn-ledge: var(--color-accent-deep); --btn-ink: var(--color-accent-ink); }
+.btn-primary:hover { --btn-bg: color-mix(in oklab, var(--color-accent) 90%, var(--color-highlight)); }
+.btn-secondary { --btn-ledge: var(--color-rule); box-shadow: inset 0 0 0 2px var(--color-rule), 0 4px 0 var(--btn-ledge); }
+.btn-secondary:hover { box-shadow: inset 0 0 0 2px var(--color-ink-2), 0 5px 0 var(--color-ink-2); }
+.btn-secondary:active { box-shadow: inset 0 0 0 2px var(--color-ink-2), 0 0 0 var(--color-ink-2); }
+
+.btn-lg { min-block-size: 64px; padding: 0 2.25rem; font: 800 var(--text-xl)/1 var(--font-display); letter-spacing: -0.01em; gap: var(--space-sm); box-shadow: 0 6px 0 var(--btn-ledge), 0 10px 24px oklch(23% 0.03 290 / 0.12); }
+.btn-lg:hover { box-shadow: 0 7px 0 var(--btn-ledge), 0 12px 28px oklch(23% 0.03 290 / 0.14); }
+.btn-lg:active { transform: translateY(6px); box-shadow: 0 0 0 var(--btn-ledge); }
+.btn-sm { min-block-size: 36px; padding: 0 0.9rem; font-size: var(--text-xs); box-shadow: 0 3px 0 var(--btn-ledge); }
+.btn-sm.btn-secondary { box-shadow: inset 0 0 0 2px var(--color-rule), 0 3px 0 var(--btn-ledge); }
+.btn-sm:active { transform: translateY(3px); }
+
+/* ---------- status chips (coins, luck) ---------- */
+.capsule {
+  display: inline-flex; align-items: center; gap: var(--space-xs); min-block-size: 40px; padding: 0 0.9rem 0 0.4rem;
+  border-radius: var(--radius-pill); background: var(--surface); box-shadow: inset 0 0 0 2px var(--line);
+  font: 700 var(--text-sm)/1 var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.capsule-icon { display: grid; place-items: center; inline-size: 30px; block-size: 30px; border-radius: 50%; }
+.capsule-coin .capsule-icon { background: var(--color-coin); color: var(--color-coin-ink); }
+.capsule-luck .capsule-icon { background: var(--sec-games); color: var(--color-accent-ink); }
+.capsule small { font-weight: 500; color: var(--color-muted); font-size: var(--text-xs); }
+
+/* ---------- segmented control and chips ---------- */
+.segmented { display: inline-flex; flex-wrap: wrap; padding: 4px; gap: 2px; border-radius: var(--radius-pill); background: var(--color-paper-2); }
+.segmented button {
+  min-block-size: 36px; padding: 0 1rem; border: 0; border-radius: var(--radius-pill); background: transparent; cursor: pointer;
+  font: 700 var(--text-sm)/1 var(--font-body); color: var(--color-muted);
+  transition: background-color var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out);
+}
+.segmented button:hover { color: var(--color-ink); }
+.segmented button[aria-pressed='true'] { background: var(--color-ink); color: var(--color-paper-3); }
+.segmented button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; min-block-size: 32px; padding: 0 0.75rem; border: 0; border-radius: var(--radius-pill);
+  background: var(--surface); box-shadow: inset 0 0 0 2px var(--line); color: var(--color-ink); font: 700 var(--text-xs)/1 var(--font-body); cursor: pointer;
+  transition: box-shadow var(--dur-short) var(--ease-out), background-color var(--dur-short) var(--ease-out);
+}
+.chip:hover { box-shadow: inset 0 0 0 2px var(--color-ink-2); }
+.chip[aria-pressed='true'] { background: var(--color-ink); color: var(--color-paper-3); box-shadow: none; }
+.chip:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.chip-dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--dot); }
+
+/* ---------- progress ---------- */
+.progress { block-size: 10px; border-radius: var(--radius-pill); background: var(--color-paper-2); overflow: hidden; }
+.progress > span { display: block; block-size: 100%; inline-size: var(--value); border-radius: inherit; background: var(--bar, var(--color-accent)); }
+.progress[data-full='true'] > span { background: var(--sec-games); }
+
+/* ---------- avatar ---------- */
+.avatar {
+  --hue: 290;
+  display: grid; place-items: center; flex: none; inline-size: var(--size, 40px); block-size: var(--size, 40px); border-radius: 50%;
+  font: 800 calc(var(--size, 40px) * 0.36)/1 var(--font-display); color: oklch(99% 0.005 var(--hue));
+  background: oklch(60% 0.15 var(--hue)); box-shadow: 0 0 0 3px var(--surface);
+}
+
+/* ---------- page scaffolding ---------- */
+.page { display: grid; gap: var(--space-xl); padding-block: var(--space-lg) var(--space-3xl); }
+.page-sub { color: var(--color-muted); }
+.section-title { font: 800 var(--text-xl)/1.1 var(--font-display); letter-spacing: -0.01em; }
+
+/* ---------- table ---------- */
+.table { inline-size: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.table th { text-align: left; font: 600 var(--text-xs)/1.2 var(--font-body); color: var(--color-muted); padding: var(--space-sm) var(--space-md); }
+.table td { padding: var(--space-sm) var(--space-md); border-top: 1px solid var(--line); }
+.table td.num, .table th.num { text-align: right; }
+.table tr[data-me='true'] td { background: color-mix(in oklab, var(--sec-collection) 28%, transparent); }
+
+/* ---------- status pill ---------- */
+.status { display: inline-flex; align-items: center; min-block-size: 26px; padding: 0 0.6rem; border-radius: var(--radius-pill); font: 700 var(--text-xs)/1 var(--font-body); white-space: nowrap; }
+.status-pending { background: color-mix(in oklab, var(--sec-collection) 55%, var(--surface)); color: var(--color-coin-ink); }
+.status-approved { background: color-mix(in oklab, var(--sec-games) 30%, var(--surface)); color: var(--tier-incomum-ink); }
+.status-rejected { background: color-mix(in oklab, var(--color-error) 16%, var(--surface)); color: var(--color-error); }
+
+/* ---------- form ---------- */
+.field { display: grid; gap: var(--space-xs); }
+.field label { font: 700 var(--text-sm)/1.2 var(--font-body); }
+.input {
+  inline-size: 100%; min-block-size: 44px; padding: var(--space-sm) var(--space-md); border: 0; border-radius: var(--radius-well);
+  background: var(--color-paper); color: var(--color-ink); box-shadow: inset 0 0 0 2px var(--line);
+  transition: box-shadow var(--dur-short) var(--ease-out);
+}
+.input:hover { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.input::placeholder { color: var(--color-muted); }
+.input:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+textarea.input { min-block-size: 120px; resize: vertical; line-height: 1.5; }
+.hint { font-size: var(--text-xs); color: var(--color-muted); }

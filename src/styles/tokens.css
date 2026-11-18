@@ -1,0 +1,61 @@
+:root {
+  color-scheme: light;
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --text-xs: 0.8125rem; --text-sm: 0.9375rem; --text-md: 1.0625rem; --text-lg: 1.25rem; --text-xl: 1.5rem; --text-2xl: 1.875rem; --text-3xl: 2.5rem; --text-4xl: 3.5rem;
+  --text-display-s: 1.875rem; --text-display: 2.5rem; --text-section: 1.5rem; --text-title: 1.0625rem; --text-lead: 1.125rem;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.7, 0, 0.84, 0); --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --container: 1200px; --gutter: 48px; --gap-columns: 24px; --section-gap-s: 48px; --section-gap: 64px; --section-gap-l: 96px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+
+  /* the album page */
+  --color-paper: oklch(96.5% 0.006 290); --color-paper-2: oklch(91% 0.01 290); --color-paper-3: oklch(99.4% 0.003 290);
+  --color-ink: oklch(23% 0.03 290); --color-ink-2: oklch(32% 0.03 290); --color-muted: oklch(46% 0.025 290);
+  --color-rule: oklch(88% 0.012 290); --line: oklch(89% 0.012 290);
+  --color-highlight: oklch(99.4% 0.003 290); --color-shade: oklch(23% 0.03 290);
+
+  /* section colors: every album section is printed in its own ink */
+  --sec-roll: oklch(63% 0.2 28);      --sec-roll-deep: oklch(50% 0.19 28);
+  --sec-collection: oklch(86% 0.16 92); --sec-collection-deep: oklch(70% 0.15 80);
+  --sec-games: oklch(68% 0.17 150);   --sec-games-deep: oklch(54% 0.15 150);
+  --sec-shop: oklch(74% 0.17 55);     --sec-shop-deep: oklch(60% 0.17 50);
+  --sec-ranking: oklch(58% 0.17 305); --sec-ranking-deep: oklch(46% 0.17 305);
+  --sec-profile: oklch(72% 0.15 355); --sec-profile-deep: oklch(58% 0.17 355);
+  --sec-suggest: oklch(70% 0.11 230); --sec-suggest-deep: oklch(56% 0.12 235);
+
+  --color-accent: var(--sec-roll); --color-accent-deep: var(--sec-roll-deep); --color-accent-ink: oklch(99.4% 0.003 290);
+  --color-focus: oklch(50% 0.2 290);
+  --color-leaf: var(--sec-games); --color-coin: oklch(84% 0.16 88); --color-coin-ink: oklch(36% 0.08 70);
+  --color-error: oklch(55% 0.2 27); --color-success: var(--sec-games-deep);
+
+  /* surfaces: flat paper, lifted by soft shadow */
+  --surface: oklch(99.4% 0.003 290); --surface-strong: oklch(99.4% 0.003 290);
+  --shadow-card: 0 1px 2px oklch(23% 0.03 290 / 0.06), 0 6px 18px oklch(23% 0.03 290 / 0.07);
+  --shadow-sheet: 0 2px 4px oklch(23% 0.03 290 / 0.08), 0 16px 36px oklch(23% 0.03 290 / 0.12);
+  --shadow-sticker: 0 1px 1px oklch(23% 0.03 290 / 0.12), 0 8px 20px oklch(23% 0.03 290 / 0.14);
+
+  --font-display: "Bricolage Grotesque", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Figtree", ui-sans-serif, system-ui, sans-serif; --font-outlier: var(--font-body);
+  --radius-card: 16px; --radius-well: 12px; --radius-control: 999px; --radius-pill: 999px; --rule-hair: 1px;
+  --tracking-display: -0.02em;
+
+  /* rarity: the printed color of the sticker; the top three are foils */
+  --tier-comum: oklch(90% 0.015 290);   --tier-comum-ink: oklch(23% 0.03 290);
+  --tier-incomum: oklch(80% 0.14 150);  --tier-incomum-ink: oklch(24% 0.06 155);
+  --tier-raro: oklch(76% 0.12 225);     --tier-raro-ink: oklch(24% 0.07 245);
+  --tier-epico: oklch(72% 0.17 345);    --tier-epico-ink: oklch(25% 0.08 345);
+  --tier-lendario: oklch(82% 0.15 82);  --tier-lendario-ink: oklch(30% 0.07 65);
+  --tier-mitico: oklch(28% 0.06 290);   --tier-mitico-ink: oklch(98% 0.005 290);
+  --tier-comum-glow: transparent; --tier-incomum-glow: transparent; --tier-raro-glow: transparent;
+  --tier-epico-glow: transparent; --tier-lendario-glow: transparent; --tier-mitico-glow: transparent;
+  --tier-mitico-hi: oklch(36% 0.07 290); --tier-mitico-lo: oklch(22% 0.05 290);
+  --foil-silver: linear-gradient(115deg, oklch(86% 0.01 290), oklch(97% 0.005 290) 30%, oklch(80% 0.015 290) 50%, oklch(96% 0.005 290) 70%, oklch(84% 0.01 290));
+  --foil-gold: linear-gradient(115deg, oklch(78% 0.13 80), oklch(93% 0.09 92) 30%, oklch(72% 0.14 70) 50%, oklch(92% 0.1 95) 70%, oklch(76% 0.13 78));
+  --iridescent: conic-gradient(from 0deg, oklch(84% 0.13 200), oklch(86% 0.15 140), oklch(88% 0.14 95), oklch(78% 0.16 345), oklch(76% 0.14 290), oklch(84% 0.13 200));
+  --sheen-aqua: oklch(92% 0.08 195); --sheen-pink: oklch(94% 0.08 345);
+
+  --dur-reveal-comum: 450ms; --dur-reveal-incomum: 600ms; --dur-reveal-raro: 900ms;
+  --dur-reveal-epico: 1300ms; --dur-reveal-lendario: 1900ms; --dur-reveal-mitico: 2800ms;
+}
+/* SENAI identity: light grey cover for the sidebar, SENAI red for the brand name */
+:root { --color-cover: oklch(92.5% 0.006 290); --color-senai-red: oklch(64% 0.22 27); }

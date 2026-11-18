@@ -7,7 +7,9 @@ export type ApiErrorCode =
   | 'invalid'
   | 'nickname_taken'
   | 'already_claimed'
-  | 'session_expired';
+  | 'session_expired'
+  | 'not_authenticated'
+  | 'unknown';
 
 export class ApiError extends Error {
   constructor(

@@ -1,0 +1,42 @@
+.grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-lg); }
+@media (max-width: 52rem) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.game { display: grid; grid-template-rows: auto 1fr; gap: var(--space-md); padding: var(--space-lg); align-content: start; }
+.game:not(:first-child) .slots, .game:not(:first-child) .memory, .game:not(:first-child) .reflex, .game:not(:first-child) .clicker { inline-size: 100%; aspect-ratio: 16 / 9; }
+.game:not(:first-child) .memory { padding: 14px 22%; }
+/* the slot machine leads: it pays the most per day, so it gets the wide row */
+.game:first-child { grid-column: 1 / -1; grid-template-rows: none; grid-template-columns: 15rem minmax(0, 1fr); align-items: center; padding: var(--space-xl); }
+@media (max-width: 40rem) { .game:first-child { grid-template-columns: 1fr; } .game:first-child .slots { inline-size: 100%; aspect-ratio: 16 / 9; padding: 14px 18%; } }
+.game:first-child .slots { inline-size: 15rem; gap: 10px; padding: 22px; }
+.game:first-child .slots span { font-size: 2.6rem; border-radius: 12px; }
+.game:first-child .name { font-size: var(--text-2xl); }
+.body { display: grid; gap: var(--space-sm); justify-items: start; }
+.name { font: 800 var(--text-xl)/1.1 var(--font-display); }
+.rule { color: var(--color-muted); font-size: var(--text-sm); }
+.limit { display: grid; gap: 6px; inline-size: 100%; }
+.limitText { font-size: var(--text-xs); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+
+/* small, exact previews of each game's own object */
+.slots, .memory, .reflex, .clicker {
+  inline-size: 9rem; aspect-ratio: 1; border-radius: var(--radius-well); display: grid; place-items: center; overflow: hidden;
+  background: var(--color-ink);
+  box-shadow: var(--shadow-card);
+}
+.slots { grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 14px; place-items: stretch; align-content: center; }
+.slots span {
+  display: grid; place-items: center; aspect-ratio: 3 / 4; border-radius: 8px; font: 800 1.6rem/1 var(--font-display); color: var(--color-ink);
+  background: var(--surface);
+}
+.slots span:last-child { color: var(--color-coin-ink); background: var(--color-coin); }
+.memory { grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 16px; place-items: stretch; align-content: center; }
+.memory span { aspect-ratio: 3 / 4; border-radius: 6px; background: var(--sec-games);  }
+.memory span[data-open='true'] { background: var(--tier-epico); }
+.reflex span {
+  inline-size: 56%; aspect-ratio: 1; border-radius: 50%;
+  background: var(--sec-games); box-shadow: 0 0 0 10px color-mix(in oklab, var(--sec-games) 35%, var(--color-ink)), 0 0 0 22px color-mix(in oklab, var(--sec-games) 18%, var(--color-ink));
+}
+.clicker { align-content: center; gap: 2px; color: var(--color-paper-3); }
+.clicker span { font: 800 3rem/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.clicker small { font-size: var(--text-xs); color: color-mix(in oklab, var(--color-paper-3) 70%, transparent); }
+
+@media (max-width: 30rem) { .game { grid-template-columns: 1fr; } .slots, .memory, .reflex, .clicker { inline-size: 100%; aspect-ratio: 16 / 9; } }
+.limit .progress { --bar: var(--sec-games); }

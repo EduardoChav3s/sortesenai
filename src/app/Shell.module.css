@@ -1,0 +1,92 @@
+.shell {
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--space-xl);
+  min-block-size: 100dvh;
+}
+
+/* ---------- sidebar: the album cover, full height, in SENAI navy ---------- */
+.sidebar {
+  position: sticky; top: 0; align-self: start; block-size: 100dvh; border-radius: 0;
+  display: flex; flex-direction: column; gap: var(--space-lg); padding: var(--space-lg) var(--space-sm) var(--space-md);
+  background: var(--color-cover); color: var(--color-ink); box-shadow: inset -1px 0 0 var(--color-rule);
+}
+.brand { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-2xs) var(--space-xs); text-decoration: none; border-radius: var(--radius-well); color: inherit; }
+.brand:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.mark {
+  inline-size: 44px; block-size: 44px; flex: none; border-radius: 50%; object-fit: cover; object-position: 50% 30%;
+  background: var(--color-paper-2); box-shadow: 0 0 0 3px var(--color-paper-3);
+}
+.word { font: 800 1.45rem/1 var(--font-display); letter-spacing: -0.03em; }
+.wordSorte { color: var(--color-ink); }
+.wordSenai { color: var(--color-senai-red); }
+
+.nav { display: grid; gap: var(--space-md); flex: 1; overflow-y: auto; align-content: start; }
+.group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.groupLabel { padding: 0 var(--space-sm) var(--space-2xs); font: 600 var(--text-xs)/1.2 var(--font-body); color: var(--color-muted); }
+
+.link {
+  display: flex; align-items: center; gap: var(--space-sm); min-block-size: 44px; padding: 0 var(--space-xs);
+  border-radius: var(--radius-well); text-decoration: none; color: var(--color-ink-2); font: 600 var(--text-sm)/1 var(--font-body);
+  transition: background-color var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out);
+}
+.linkIcon {
+  display: grid; place-items: center; inline-size: 30px; block-size: 30px; border-radius: 9px; flex: none;
+  background: color-mix(in oklab, var(--sec) 28%, var(--color-paper-3)); color: color-mix(in oklab, var(--sec) 55%, var(--color-ink));
+  transition: background-color var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out), transform var(--dur-short) var(--ease-out);
+}
+.link:hover { background: color-mix(in oklab, var(--color-paper-3) 70%, transparent); color: var(--color-ink); }
+.link:hover .linkIcon { transform: rotate(-6deg); }
+.link:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+.active { background: var(--color-paper-3); color: var(--color-ink); box-shadow: var(--shadow-card); }
+.active:hover { background: var(--color-paper-3); color: var(--color-ink); }
+.active .linkIcon { background: var(--sec); color: var(--color-ink); }
+
+.sideFoot { display: grid; gap: var(--space-xs); padding-top: var(--space-sm); border-top: 1px solid var(--color-rule); }
+.adminLink { font-weight: 500; }
+.me { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs); border-radius: var(--radius-well); text-decoration: none; color: inherit; }
+.me:hover { background: color-mix(in oklab, var(--color-paper-3) 70%, transparent); }
+.me:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+.me :global(.avatar) { box-shadow: 0 0 0 3px var(--color-paper-3); }
+.meText { display: grid; gap: 2px; min-inline-size: 0; }
+.meText strong { font: 700 var(--text-sm)/1.1 var(--font-body); }
+.meText span { font-size: var(--text-xs); color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- main ---------- */
+.main { min-inline-size: 0; max-inline-size: 1180px; display: grid; grid-template-rows: auto 1fr; padding: var(--space-lg) var(--space-xl) 0 0; }
+.topbar { display: flex; align-items: center; gap: var(--space-md); padding-block: var(--space-xs) var(--space-sm); }
+.title { display: flex; align-items: center; gap: var(--space-sm); font: 800 var(--text-3xl)/1 var(--font-display); letter-spacing: -0.03em; color: var(--color-ink); margin-inline-end: auto; }
+.titleChip { inline-size: 0.7em; block-size: 0.7em; border-radius: 0.2em; background: var(--sec); rotate: -8deg; flex: none; }
+.status { display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; justify-content: flex-end; }
+.content { min-inline-size: 0; }
+.sample { font-size: var(--text-xs); color: var(--color-muted); padding-inline-end: var(--space-xs); }
+.mobileBrand { display: none; }
+.sampleShort { display: none; }
+
+/* ---------- mobile tab bar ---------- */
+.tabbar { display: none; }
+
+@media (max-width: 60rem) {
+  .shell { grid-template-columns: minmax(0, 1fr); padding: var(--space-sm) var(--space-sm) calc(96px + env(safe-area-inset-bottom)); gap: 0; }
+  .sidebar { display: none; }
+  .main { padding: 0; max-inline-size: none; }
+  .mobileBrand .wordSorte { color: var(--color-ink); }
+  .topbar { flex-wrap: wrap; row-gap: var(--space-sm); }
+  .mobileBrand { display: block; margin-inline-end: auto; color: var(--color-ink); }
+  .title { order: 3; flex-basis: 100%; font-size: var(--text-2xl); }
+  .daily span, .luck small { display: none; }
+  .daily { padding-inline: 0.75rem; }
+  .sample { display: inline-flex; align-items: center; min-block-size: 40px; padding: 0 0.75rem; border-radius: var(--radius-pill); box-shadow: inset 0 0 0 2px var(--line); }
+  .sampleLong { display: none; }
+  .sampleShort { display: inline; }
+  .status { flex-wrap: nowrap; }
+  .tabbar {
+    position: fixed; inset: auto var(--space-sm) calc(var(--space-sm) + env(safe-area-inset-bottom)); z-index: var(--z-sticky-nav);
+    display: grid; grid-template-columns: repeat(5, 1fr); padding: 6px; background: var(--color-cover); box-shadow: var(--shadow-sheet), inset 0 0 0 1px var(--color-rule);
+  }
+  .tab {
+    display: grid; justify-items: center; gap: 2px; padding: 6px 0; border-radius: var(--radius-well); text-decoration: none;
+    color: var(--color-muted); font: 600 0.7rem/1 var(--font-body);
+  }
+  .tab:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 1px; }
+  .tabActive { color: var(--color-ink); background: var(--sec); }
+}
+.meActive, .meActive:hover { background: var(--color-paper-3); box-shadow: var(--shadow-card); }

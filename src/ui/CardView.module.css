@@ -1,0 +1,80 @@
+/* The figurinha: a die-cut sticker with a white border, a printed face and a name plate.
+   Rarity is the print: flat color up to raro, silver foil for épico, gold foil for lendário, holographic for mítico.
+   Sizes scale through font-size; everything inside is em-based. */
+.card {
+  --print: var(--tier-comum); --ink: var(--tier-comum-ink);
+  position: relative; isolation: isolate;
+  inline-size: 11em; aspect-ratio: 5 / 7; padding: 0.38em;
+  display: grid; grid-template-rows: minmax(0, 1fr) auto;
+  border-radius: 0.95em; background: var(--surface); color: var(--color-ink); font-size: 16px;
+  box-shadow: var(--shadow-sticker);
+}
+.s { font-size: 13px; }
+.m { font-size: 16px; }
+.l { font-size: 21px; }
+
+.card[data-tier='incomum'] { --print: var(--tier-incomum); --ink: var(--tier-incomum-ink); }
+.card[data-tier='raro'] { --print: var(--tier-raro); --ink: var(--tier-raro-ink); }
+.card[data-tier='epico'] { --print: var(--tier-epico); --ink: var(--tier-epico-ink); }
+.card[data-tier='lendario'] { --print: var(--tier-lendario); --ink: var(--tier-lendario-ink); }
+.card[data-tier='mitico'] { --print: var(--tier-mitico); --ink: var(--tier-mitico-ink); }
+
+/* printed face */
+.face {
+  position: relative; overflow: hidden; border-radius: 0.65em 0.65em 0.3em 0.3em;
+  display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 0.45em;
+  background: var(--print); color: var(--ink);
+}
+.card[data-tier='epico'] .face { background: var(--foil-silver); }
+.card[data-tier='epico'] .face::after { content: ""; position: absolute; inset: 0; background: color-mix(in oklab, var(--tier-epico) 18%, transparent); mix-blend-mode: multiply; pointer-events: none; }
+.card[data-tier='lendario'] .face { background: var(--foil-gold); }
+.card[data-tier='mitico'] .face { background: linear-gradient(160deg, var(--tier-mitico-hi), var(--tier-mitico-lo)); }
+.card[data-tier='mitico'] .face::before {
+  content: ""; position: absolute; inset: -30%; background: var(--iridescent); opacity: 0.55; mix-blend-mode: screen; pointer-events: none;
+}
+
+.head { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 0.4em; }
+.num {
+  display: grid; place-items: center; min-inline-size: 2.1em; block-size: 2.1em; padding-inline: 0.35em; border-radius: var(--radius-pill);
+  font: 800 0.85em/1 var(--font-display); font-variant-numeric: tabular-nums; color: var(--color-ink); background: var(--surface);
+}
+.odds {
+  padding: 0.35em 0.6em; border-radius: var(--radius-pill); white-space: nowrap;
+  font: 800 0.8em/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  background: var(--color-ink); color: var(--surface);
+}
+.card[data-tier='mitico'] .odds { background: var(--surface); color: var(--color-ink); }
+.art { position: relative; z-index: 1; display: grid; place-items: center; min-block-size: 0; }
+.emblem { inline-size: 48%; block-size: auto; color: var(--ink); opacity: 0.9; }
+.card[data-tier='mitico'] .emblem { color: var(--sheen-aqua); opacity: 1; }
+
+/* name plate */
+.plate { display: grid; gap: 0.15em; padding: 0.5em 0.35em 0.2em; }
+.title { font: 700 1em/1.15 var(--font-body); letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.joke { font-size: max(11px, 0.76em); line-height: 1.3; color: var(--color-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.foot { display: flex; justify-content: space-between; align-items: center; font-size: max(11px, 0.72em); color: var(--color-muted); }
+.tier { font-weight: 600; }
+.qty { font-weight: 700; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+
+/* the holo sweep, only on mítico */
+.shine { position: absolute; inset: -20% -80%; z-index: 3; pointer-events: none; opacity: 0;
+  background: linear-gradient(110deg, transparent 42%, color-mix(in oklab, var(--color-highlight) 55%, transparent) 50%, transparent 58%); }
+.card[data-tier='mitico'] .shine { opacity: 1; animation: sweep 3.4s var(--ease-in-out) infinite alternate; }
+@keyframes sweep { from { transform: translateX(-45%); } to { transform: translateX(45%); } }
+
+/* empty album slot: printed frame, number, rarity; nothing of the joke */
+.locked {
+  background: var(--color-paper); box-shadow: none; padding: 0.55em;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  outline: 2px dashed var(--color-rule); outline-offset: -2px;
+}
+.lockedNum { place-self: center; font: 800 3.4em/1 var(--font-display); color: var(--color-rule); font-variant-numeric: tabular-nums; }
+.lockedHead { display: flex; justify-content: flex-end; }
+.lockedHead .odds { background: color-mix(in oklab, var(--print) 70%, var(--surface)); color: var(--ink); }
+.card.locked[data-tier='mitico'] .lockedHead .odds { background: var(--tier-mitico); color: var(--tier-mitico-ink); }
+.lockedFoot { text-align: center; font-size: max(11px, 0.72em); font-weight: 600; color: var(--color-muted); }
+
+@media (prefers-reduced-motion: reduce) { .card[data-tier='mitico'] .shine { animation: none; } }
+/* a real photo fills the printed face; the number and rarity stay on top */
+.photo { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; object-position: 50% 25%; z-index: 0; }
+.face:has(.photo) .head { position: relative; z-index: 2; }

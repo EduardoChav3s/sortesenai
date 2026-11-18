@@ -1,0 +1,15 @@
+.podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: var(--space-md); max-inline-size: 44rem; margin-inline: auto; inline-size: 100%; }
+.place { display: grid; justify-items: center; gap: var(--space-xs); text-align: center; }
+.pedestal {
+  inline-size: 100%; display: grid; place-items: start center; padding-top: var(--space-md);
+  border-radius: var(--radius-card) var(--radius-card) 6px 6px;
+  font: 800 var(--text-2xl)/1 var(--font-display); color: var(--color-ink);
+}
+.place[data-pos='1'] .pedestal { block-size: 9rem; background: var(--color-coin); box-shadow: 0 6px 0 var(--sec-collection-deep); }
+.place[data-pos='2'] .pedestal { block-size: 6.5rem; background: var(--color-paper-2); box-shadow: 0 6px 0 var(--color-rule); }
+.place[data-pos='3'] .pedestal { block-size: 5rem; background: var(--sec-ranking); color: var(--color-paper-3); box-shadow: 0 6px 0 var(--sec-ranking-deep); }
+.name { font: 600 var(--text-md)/1.1 var(--font-body); }
+.value { font-size: var(--text-sm); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.tablePanel { padding: var(--space-xs) var(--space-sm); overflow-x: auto; }
+.who { display: flex; align-items: center; gap: var(--space-sm); }
+.pos { inline-size: 3rem; font-weight: 800; color: var(--color-muted); }

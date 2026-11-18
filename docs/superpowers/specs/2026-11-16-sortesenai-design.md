@@ -26,7 +26,6 @@ O porquê: diversão entre amigos + um projeto apresentável no SENAI. Por isso:
 ## 3. Não-objetivos (v1)
 
 - Troca de cartas entre jogadores (fica para v2).
-- Upload livre de banner.
 - App mobile nativo (o site deve funcionar bem no celular, mas é web).
 - Escala para milhares de usuários.
 
@@ -117,7 +116,7 @@ Cada partida começa com uma RPC que cria uma **sessão de jogo** no servidor e 
 - Tirar carta: animação da tiragem; revelação proporcional à raridade.
 - Coleção: todas as cartas (bloqueadas mostram só a raridade), quantidade, % completo, filtros.
 - Detalhe da carta: piada, imagem, raridade, quem já tem.
-- Loja: abas **Sorte** e **Cosméticos**.
+- Loja: abas **Poções de sorte** e **Títulos**; outros itens a definir depois. Banners não são vendidos. *(Mudança do dono em 2026-11-17.)*
 - Jogos: hub + 4 jogos.
 - Ranking: por moedas, % da coleção, maior raridade tirada.
 - Perfil (próprio e dos amigos): banner, avatar com moldura, apelido, título, bio, vitrine de 3 cartas, estatísticas.
@@ -134,8 +133,8 @@ Cada partida começa com uma RPC que cria uma **sessão de jogo** no servidor e 
 
 ## 12. Customização de perfil
 
-- **Títulos** são conquistados, não comprados (ex.: "Primeira 1/1 milhão", "Colecionador 50%"). *(Chamada do designer:)* existe um **conjunto fixo de tipos de condição** com parâmetros que o admin preenche — por exemplo "tirou carta com N ≥ X", "coleção ≥ X%", "fez X tiragens", "ganhou X moedas no jogo Y", "concedido manualmente". Sem motor de regras arbitrárias. A checagem roda no servidor após cada evento relevante.
-- **Banner:** comprado na Loja ou desbloqueado por conquista (ex.: banner exclusivo para quem tirou carta ≥ 1/1 bilhão). Sem upload livre.
+- **Títulos** são conquistados **ou comprados na Loja** (mudança do dono em 2026-11-17) (ex.: "Primeira 1/1 milhão", "Colecionador 50%"). *(Chamada do designer:)* existe um **conjunto fixo de tipos de condição** com parâmetros que o admin preenche — por exemplo "tirou carta com N ≥ X", "coleção ≥ X%", "fez X tiragens", "ganhou X moedas no jogo Y", "concedido manualmente". Sem motor de regras arbitrárias. A checagem roda no servidor após cada evento relevante.
+- **Banner:** o próprio jogador envia a imagem (upload, mesmas regras do avatar: até 2 MB, jpg/png/webp). Não é vendido na Loja. *(Mudança do dono em 2026-11-17.)*
 - **Avatar:** foto do Google por padrão; upload próprio permitido; ou uma carta que o jogador possui.
 - Moldura, cor/fundo e efeito do nome no mural: cosméticos comprados.
 
