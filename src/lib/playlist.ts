@@ -9,3 +9,8 @@ export function pickRandom<T>(list: T[], random: number): T | null {
   if (list.length === 0) return null;
   return list[Math.min(list.length - 1, Math.floor(random * list.length))];
 }
+
+/** Browsers block sound until the first tap; then a "tap to enter" screen unlocks the music in one touch. */
+export function needsTapToStart(s: { hasTracks: boolean; wanted: boolean; blocked: boolean; dismissed: boolean }): boolean {
+  return s.hasTracks && s.wanted && s.blocked && !s.dismissed;
+}

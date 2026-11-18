@@ -2,7 +2,7 @@
 // so it starts then (or on the play button). Stops by itself once the player signs in (unmount).
 import { useEffect, useRef, useState } from 'react';
 import { api, musicUrl } from '@/data/client';
-import { nextIndex } from '@/lib/playlist';
+import { needsTapToStart, nextIndex } from '@/lib/playlist';
 import s from './LoginMusic.module.css';
 
 const PREF_KEY = 'sortesenai:musica-login';
@@ -27,6 +27,8 @@ export function LoginMusic() {
   const [tracks, setTracks] = useState<{ title: string; url: string }[]>([]);
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [blocked, setBlocked] = useState(false); // the browser refused to start sound on its own
+  const [dismissed, setDismissed] = useState(false);
   const wanted = useRef(readWanted());
   const audio = useRef<HTMLAudioElement | null>(null);
   const count = useRef(0);
@@ -50,7 +52,11 @@ export function LoginMusic() {
     a.volume = 0.35;
     a.preload = 'auto';
     const onEnd = () => setIdx((i) => nextIndex(i, count.current));
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => {
+      setPlaying(true);
+      setBlocked(false);
+      setDismissed(true);
+    };
     const onPause = () => setPlaying(false);
     a.addEventListener('ended', onEnd);
     a.addEventListener('play', onPlay);
@@ -71,7 +77,16 @@ export function LoginMusic() {
     if (!a || tracks.length === 0) return;
     a.loop = tracks.length === 1;
     a.src = tracks[idx % tracks.length].url;
-    if (wanted.current) a.play().catch(() => undefined);
+    // Try to start right away. Most browsers refuse sound before the first tap: then the tap screen shows.
+    // Dev only: /_login?sem-som acts like a browser that blocks sound, to preview the tap screen.
+    if (import.meta.env.DEV && wanted.current && new URLSearchParams(window.location.search).has('sem-som') && !a.dataset.tapped) {
+      setBlocked(true);
+      return;
+    }
+    if (wanted.current)
+      a.play().catch((e: unknown) => {
+        if ((e as { name?: string })?.name === 'NotAllowedError') setBlocked(true);
+      });
   }, [idx, tracks]);
 
   // Autoplay is usually blocked: start on the first interaction with the page, if the player wants music.
@@ -91,6 +106,16 @@ export function LoginMusic() {
   if (tracks.length === 0) return null;
   const current = tracks[idx % tracks.length];
 
+  function enter() {
+    wanted.current = true;
+    saveWanted(true);
+    setDismissed(true);
+    if (audio.current) audio.current.dataset.tapped = '1';
+    audio.current?.play().catch(() => undefined);
+  }
+
+  const gate = needsTapToStart({ hasTracks: tracks.length > 0, wanted: wanted.current, blocked, dismissed });
+
   function toggle() {
     const a = audio.current;
     if (!a) return;
@@ -106,6 +131,17 @@ export function LoginMusic() {
   }
 
   return (
+    <>
+      {gate && (
+        <button type="button" className={s.gate} onClick={enter} autoFocus>
+          <img className={s.gateLogo} src="/brand/mascote.webp" alt="" width={96} height={96} />
+          <span className={s.gateBrand}>
+            Sorte<span>Senai</span>
+          </span>
+          <span className={s.gateCta}>Toque para entrar</span>
+          <span className={s.gateHint}>♪ com música: {current.title}</span>
+        </button>
+      )}
     <div className={s.player} data-playing={playing} onPointerDown={(e) => e.stopPropagation()}>
       <button type="button" className={s.play} onClick={toggle} aria-label={playing ? 'Pausar música' : 'Tocar música'}>
         {playing ? (
@@ -137,5 +173,6 @@ export function LoginMusic() {
         </button>
       )}
     </div>
+    </>
   );
 }

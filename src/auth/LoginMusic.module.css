@@ -25,3 +25,26 @@
   .player { padding: 6px; }
   .info, .bars, .next { display: none; }
 }
+
+/* tap to enter: shown only when the browser blocked sound; the one tap starts the music */
+.gate {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: var(--space-sm);
+  padding: var(--space-xl); border: 0; cursor: pointer; text-align: center; color: var(--color-ink);
+  background: color-mix(in oklab, var(--color-paper) 88%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  animation: gateIn 0.35s var(--ease-out) both;
+}
+.gate:focus-visible { outline: none; }
+.gate:focus-visible .gateCta { outline: 3px solid var(--color-focus); outline-offset: 4px; }
+.gateLogo { inline-size: 96px; block-size: 96px; border-radius: 50%; box-shadow: var(--shadow-sheet); }
+.gateBrand { font: 800 var(--text-2xl)/1 var(--font-display); letter-spacing: -0.02em; }
+.gateBrand span { color: var(--color-accent); }
+.gateCta {
+  margin-block-start: var(--space-sm); padding: 0.9rem 1.6rem; border-radius: var(--radius-pill);
+  font: 800 var(--text-lg)/1 var(--font-display); color: var(--color-accent-ink); background: var(--color-accent);
+  box-shadow: 0 5px 0 var(--color-accent-deep); animation: pulse 1.6s ease-in-out infinite;
+}
+.gateHint { font-size: var(--text-sm); color: var(--color-muted); max-inline-size: 30ch; }
+@keyframes gateIn { from { opacity: 0; } }
+@keyframes pulse { 50% { transform: scale(1.04); } }
+@media (prefers-reduced-motion: reduce) { .gate, .gateCta { animation: none; } }
