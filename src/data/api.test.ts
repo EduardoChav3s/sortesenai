@@ -326,3 +326,10 @@ test('admin game settings and shop call their RPCs with the right argument names
   expect(calls[0].args).toEqual({ p_patch: { pull_cost: 15 } });
   expect(calls[4].args).toEqual({ p: { name: 'Gota', description: '', price: 100, multiplier: 2, duration_minutes: 10, duration_pulls: null, active: true } });
 });
+
+test('giving or taking admin calls admin_set_role with the right argument names', async () => {
+  const { rpc, calls } = fakeRpc({ admin_set_role: { data: { id: 'u2', role: 'admin' } } });
+  const r = await createApi(rpc).adminSetRole('u2', 'admin');
+  expect(calls).toEqual([{ fn: 'admin_set_role', args: { p_user: 'u2', p_role: 'admin' } }]);
+  expect(r.role).toBe('admin');
+});

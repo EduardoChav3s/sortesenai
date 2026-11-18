@@ -261,6 +261,7 @@ export function createApi(rpc: Rpc, sign?: Sign) {
     adminApproveSuggestion: (id: string, title: string, joke: string, odds_n: number) =>
       call<DbCard>('admin_approve_suggestion', { p_id: id, p_title: title, p_joke: joke, p_odds_n: odds_n }),
     adminRejectSuggestion: (id: string, note: string) => call<void>('admin_reject_suggestion', { p_id: id, p_note: note }),
+    adminSetRole: (userId: string, role: 'player' | 'admin') => call<{ id: string; role: 'player' | 'admin' }>('admin_set_role', { p_user: userId, p_role: role }),
     adminSetBanned: (userId: string, banned: boolean) => call<void>('admin_set_banned', { p_user: userId, p_banned: banned }),
     // gifts, trades and duels between friends
     giftCard: (to: string, cardId: string) => call<{ quantity_left: number }>('gift_card', { p_to: to, p_card: cardId }),

@@ -453,6 +453,32 @@ select (public.admin_upsert_title('{"name": "Título escondido", "price": 500, "
 select t.ok(exists (select 1 from jsonb_array_elements(public.admin_list_titles()) x where x->>'id' = :'hidden_title'), 'admin ve titulo desativado');
 reset role;
 
+-- ------------------------------------------------------------ admin: give and take the admin role
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err(format('select public.admin_set_role(%L, %L)', :bia, 'admin'), 'forbidden', 'jogador comum nao se torna admin sozinho');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.err(format('select public.admin_set_role(%L, %L)', :duda, 'player'), 'invalid', 'admin nao muda o proprio cargo');
+select t.err(format('select public.admin_set_role(%L, %L)', :bia, 'dono'), 'invalid', 'cargo desconhecido recusado');
+select t.err(format('select public.admin_set_role(%L, %L)', '00000000-0000-0000-0000-000000000999', 'admin'), 'not_found', 'jogador que nao existe');
+select t.err(format('select public.admin_set_role(%L, %L)', :ana, 'admin'), 'invalid', 'conta suspensa nao vira admin');
+select t.ok(public.admin_set_role(:bia, 'admin')->>'role' = 'admin', 'admin da admin para outra pessoa');
+reset role;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(jsonb_array_length(public.admin_list_players()) >= 2, 'novo admin entra no painel');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok(public.admin_set_role(:bia, 'player')->>'role' = 'player', 'admin tira o admin de outra pessoa');
+reset role;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err('select public.admin_list_players()', 'forbidden', 'quem perdeu o admin sai do painel');
+reset role;
+
 -- ------------------------------------------------------------ randomness
 select t.ok((select min(x) >= 0 and max(x) < 1 and abs(avg(x) - 0.5) < 0.02 from (select app.rand() x from generate_series(1, 20000)) r),
             'app.rand uniforme em [0,1)');

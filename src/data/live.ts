@@ -195,6 +195,10 @@ export function useAdminActions() {
       mutationFn: (v: { id: string; note: string }) => api!.adminRejectSuggestion(v.id, v.note),
       onSettled: () => inv('admin-suggestions'),
     }),
+    setRole: useMutation({
+      mutationFn: (v: { id: string; role: 'player' | 'admin' }) => api!.adminSetRole(v.id, v.role),
+      onSettled: () => inv('admin-players'),
+    }),
     setBanned: useMutation({
       mutationFn: (v: { id: string; banned: boolean }) => api!.adminSetBanned(v.id, v.banned),
       onSettled: () => inv('admin-players', 'ranking', 'friends', 'players'),

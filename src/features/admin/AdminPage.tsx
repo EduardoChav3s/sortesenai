@@ -311,9 +311,18 @@ function CoinsForm({ player, onDone }: { player: AdminPlayer; onDone: (msg: stri
 function PlayersTab() {
   const live = useAdminPlayers();
   const me = useMyProfile();
-  const { setBanned } = useAdminActions();
+  const { setBanned, setRole } = useAdminActions();
   const [open, setOpen] = useState<string | null>(null);
   const [banAsk, setBanAsk] = useState<string | null>(null);
+  const [roleAsk, setRoleAsk] = useState<string | null>(null);
+  function toggleRole(p: AdminPlayer) {
+    if (!isLive) return setRoleAsk(null);
+    const role = p.role === 'admin' ? 'player' : 'admin';
+    setRole.mutate(
+      { id: p.id, role },
+      { onSuccess: () => (setRoleAsk(null), setNotice(role === 'admin' ? `${p.nickname} agora é admin.` : `${p.nickname} não é mais admin.`)) },
+    );
+  }
   function toggleBan(p: AdminPlayer) {
     if (!isLive) return setBanAsk(null);
     setBanned.mutate(
@@ -325,7 +334,7 @@ function PlayersTab() {
   const players = isLive ? (live.data ?? []) : SAMPLE_PLAYERS;
   return (
     <>
-      <p className="page-sub">{players.length} jogadores. Toda mudança de saldo fica no histórico de moedas do jogador.</p>
+      <p className="page-sub">{players.length} jogadores. Toda mudança de saldo fica no histórico de moedas do jogador. Você não pode mudar o seu próprio cargo.</p>
       {notice && (
         <p role="status" className={s.notice}>
           {notice}
@@ -333,6 +342,7 @@ function PlayersTab() {
       )}
       {isLive && live.isError && <p role="alert" className={s.error}>Não deu para carregar os jogadores.</p>}
       {setBanned.isError && <p role="alert" className={s.error}>Não deu para mudar o acesso. Tente de novo.</p>}
+      {setRole.isError && <p role="alert" className={s.error}>Não deu para mudar o cargo. Tente de novo.</p>}
       <div className={`panel ${s.tablePanel}`}>
         <table className="table">
           <thead>
@@ -354,7 +364,7 @@ function PlayersTab() {
               const chip = playerChip(p.id, p.nickname, p.avatar_url);
               return (
                 <Fragment key={p.id}>
-                  <tr data-open={open === p.id} data-asking={banAsk === p.id} data-banned={p.banned}>
+                  <tr data-open={open === p.id || roleAsk === p.id} data-asking={banAsk === p.id} data-banned={p.banned}>
                     <td>
                       <span className={s.cardCell}>
                         <Avatar initials={chip.initials} hue={chip.hue} size="32px" url={chip.avatar} />
@@ -371,7 +381,19 @@ function PlayersTab() {
                     <td className={`num ${s.odds}`}>{formatCoins(p.coins)}</td>
                     <td className="num">{p.cards_owned}</td>
                     <td className={s.actions}>
-                      {banAsk === p.id ? (
+                      {roleAsk === p.id ? (
+                        <span className={s.confirm}>
+                          <span className={s.confirmText}>
+                            {p.role === 'admin' ? 'Tira o acesso ao painel Admin. Confirmar?' : 'Dá acesso total ao painel Admin. Confirmar?'}
+                          </span>
+                          <button type="button" className={`btn ${p.role === 'admin' ? 'btn-danger' : 'btn-primary'} btn-sm`} disabled={setRole.isPending} onClick={() => toggleRole(p)}>
+                            {setRole.isPending ? 'Salvando…' : p.role === 'admin' ? 'Sim, tirar admin' : 'Sim, tornar admin'}
+                          </button>
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRoleAsk(null)}>
+                            Não
+                          </button>
+                        </span>
+                      ) : banAsk === p.id ? (
                         <span className={s.confirm}>
                           <span className={s.confirmText}>{p.banned ? 'Liberar o acesso de novo?' : 'Tira o acesso ao site. Suspender?'}</span>
                           <button type="button" className={`btn ${p.banned ? 'btn-primary' : 'btn-danger'} btn-sm`} disabled={setBanned.isPending} onClick={() => toggleBan(p)}>
@@ -387,8 +409,13 @@ function PlayersTab() {
                             <button type="button" className="btn btn-secondary btn-sm" onClick={() => (setNotice(null), setOpen(p.id))}>
                               Moedas
                             </button>
+                            {p.id !== me.data?.profile.id && (p.role === 'admin' || !p.banned) && (
+                              <button type="button" className="btn btn-secondary btn-sm" onClick={() => (setNotice(null), setOpen(null), setBanAsk(null), setRoleAsk(p.id))}>
+                                {p.role === 'admin' ? 'Tirar admin' : 'Tornar admin'}
+                              </button>
+                            )}
                             {p.id !== me.data?.profile.id && (
-                              <button type="button" className={`btn btn-secondary btn-sm ${p.banned ? '' : s.dangerText}`} onClick={() => (setNotice(null), setOpen(null), setBanAsk(p.id))}>
+                              <button type="button" className={`btn btn-secondary btn-sm ${p.banned ? '' : s.dangerText}`} onClick={() => (setNotice(null), setOpen(null), setRoleAsk(null), setBanAsk(p.id))}>
                                 {p.banned ? 'Reativar' : 'Suspender'}
                               </button>
                             )}
