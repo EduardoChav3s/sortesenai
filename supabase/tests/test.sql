@@ -34,13 +34,8 @@ grant execute on all functions in schema t to authenticated;
 -- ------------------------------------------------------------ access
 select t.as_user(:duda, 'duda@turma.test');
 set role authenticated;
-select t.ok(public.my_session()->>'access' = 'not_invited', 'e-mail fora da lista recebe not_invited');
-select t.err('select public.get_collection()', 'not_invited', 'sem convite nao le a colecao');
-reset role;
-
-insert into public.allowed_emails (email) values ('duda@turma.test'), ('ana@turma.test');
-set role authenticated;
-select t.ok(public.my_session()->>'access' = 'ok', 'convidado entra');
+-- no guest list: any signed-in Google or e-mail account plays
+select t.ok(public.my_session()->>'access' = 'ok', 'qualquer conta logada entra, sem convite');
 select t.ok((select coins from public.profiles) = 500, 'perfil criado com 500 moedas');
 select t.ok((select nickname from public.profiles) = 'duda', 'apelido sai do e-mail');
 

@@ -11,7 +11,6 @@ import s from './RollPage.module.css';
 
 const ERRORS: Record<string, string> = {
   insufficient_coins: 'Moedas insuficientes para roletar.',
-  not_invited: 'Seu convite foi removido.',
   banned: 'Sua conta está suspensa.',
 };
 

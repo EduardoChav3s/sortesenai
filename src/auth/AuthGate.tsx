@@ -76,19 +76,19 @@ export function AuthGate({ deps, children }: { deps: AuthDeps | null; children: 
   if (gate === 'demo' || gate === 'app') return <>{children}</>;
   if (gate === 'loading' && failed)
     return (
-      <Screen title="Não deu para conferir seu convite" text="Confira sua internet e tente de novo.">
+      <Screen title="Não deu para abrir sua conta" text="Confira sua internet e tente de novo.">
         <button type="button" className="btn btn-primary" onClick={() => setAttempt((n) => n + 1)}>
           Tentar de novo
         </button>
       </Screen>
     );
-  if (!checked || gate === 'loading') return <Screen title="Abrindo o álbum…" text="Conferindo seu convite." />;
+  if (!checked || gate === 'loading') return <Screen title="Abrindo o álbum…" text="Preparando sua conta." />;
   if (gate === 'login') return <LoginPage deps={deps!} onAdmin={() => window.location.assign('/admin')} />;
   const banned = gate === 'banned';
   return (
     <Screen
       title={banned ? 'Conta suspensa' : 'Acesso restrito'}
-      text={banned ? 'Fale com o admin da turma para voltar.' : 'Seu e-mail ainda não está na lista da turma. Peça um convite ao admin.'}
+      text={banned ? 'Fale com o admin da turma para voltar.' : 'Não deu para abrir sua conta. Saia e entre de novo.'}
     >
       <button type="button" className="btn btn-secondary" onClick={() => deps!.signOut()}>
         Sair e usar outra conta

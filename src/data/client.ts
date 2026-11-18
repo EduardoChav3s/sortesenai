@@ -61,7 +61,7 @@ export const authDeps: AuthDeps | null = supabase
       },
       async isAdmin() {
         const { data } = await supabase.from('profiles').select('role').maybeSingle();
-        if (!data) await api!.session(); // first login: creates the profile if invited
+        if (!data) await api!.session(); // first login: creates the profile
         const again = data ?? (await supabase.from('profiles').select('role').maybeSingle()).data;
         return again?.role === 'admin';
       },

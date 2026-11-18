@@ -160,7 +160,7 @@ export function LoginPage({ deps, onAdmin }: { deps: LoginDeps; onAdmin?: () => 
             <h1 id="login-title" className={s.title}>
               {creating ? 'Crie sua conta' : 'Bem-vindo de volta'}
             </h1>
-            <p className={s.sub}>Só a turma convidada entra no álbum.</p>
+            <p className={s.sub}>Entre com Google ou e-mail e comece a colecionar.</p>
           </header>
         )}
 

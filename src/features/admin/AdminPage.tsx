@@ -6,15 +6,12 @@ import { isApiError } from '@/data/errors';
 import { COLLECTION } from '@/design/sample';
 import { formatOdds } from '@/lib/format';
 import { rarityTier, TIER_LABEL } from '@/lib/rarity';
-import { isLive, useAdminActions, useAdminCards, useAllowedEmails, useRole } from '@/data/live';
+import { isLive, useAdminActions, useAdminCards, useRole } from '@/data/live';
 import type { CardContent } from '@/data/types';
 import s from './AdminPage.module.css';
 
-const TABS = ['Cartas', 'Convidados'] as const;
-type Tab = (typeof TABS)[number];
 
 const SAMPLE_CARDS: CardContent[] = COLLECTION.filter((e) => e.owned).map((e) => e.card as CardContent);
-const SAMPLE_EMAILS = [{ email: 'duda@exemplo.com' }, { email: 'ana@exemplo.com' }];
 
 /** Object url for a picked file, freed when it changes. */
 function usePreview(file: File | null) {
@@ -195,59 +192,7 @@ function CardsTab() {
   );
 }
 
-function GuestsTab() {
-  const live = useAllowedEmails();
-  const { addEmail, removeEmail } = useAdminActions();
-  const [email, setEmail] = useState('');
-  const list = isLive ? (live.data ?? []) : SAMPLE_EMAILS;
-  const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
-  function add(e: FormEvent) {
-    e.preventDefault();
-    if (!valid || !isLive) return;
-    addEmail.mutate(email.trim().toLowerCase(), { onSuccess: () => setEmail('') });
-  }
-  return (
-    <>
-      <form className={s.addRow} onSubmit={add}>
-        <label htmlFor="guest" className="visually-hidden">
-          E-mail do convidado
-        </label>
-        <input id="guest" className="input" type="email" placeholder="amigo@gmail.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <button type="submit" className="btn btn-primary" disabled={!valid || addEmail.isPending}>
-          Convidar
-        </button>
-      </form>
-      <p className="hint">Se o app do Google estiver em modo de teste, adicione o e-mail também em Test users no Google Cloud.</p>
-      <div className={`panel ${s.tablePanel}`}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th scope="col">E-mail</th>
-              <th scope="col">
-                <span className="visually-hidden">Ações</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((g) => (
-              <tr key={g.email}>
-                <td>{g.email}</td>
-                <td className={s.actions}>
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={!isLive} onClick={() => removeEmail.mutate(g.email)}>
-                    Remover
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
 export function AdminPage() {
-  const [tab, setTab] = useState<Tab>('Cartas');
   const role = useRole();
   if (isLive && role.isLoading) return <p className="page-sub">Conferindo permissão…</p>;
   if (isLive && role.data !== 'admin')
@@ -259,14 +204,7 @@ export function AdminPage() {
     );
   return (
     <div className="page">
-      <div className="segmented" role="group" aria-label="Seção do admin">
-        {TABS.map((t) => (
-          <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)}>
-            {t}
-          </button>
-        ))}
-      </div>
-      {tab === 'Cartas' ? <CardsTab /> : <GuestsTab />}
+      <CardsTab />
     </div>
   );
 }

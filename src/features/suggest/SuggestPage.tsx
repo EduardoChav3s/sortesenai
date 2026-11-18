@@ -56,7 +56,7 @@ export function SuggestPage() {
             />
           </label>
           <div className={s.formFoot}>
-            <span className="hint">Só a turma convidada vê as ideias.</span>
+            <span className="hint">Só você e o admin veem suas ideias.</span>
             {done && <span role="status" className="hint">Enviada! O admin vai avaliar.</span>}
             {create.isError && <span role="alert" className="hint" style={{ color: 'var(--color-error)' }}>Não deu para enviar. Tente de novo.</span>}
             <button type="submit" className="btn btn-primary" disabled={tooShort || create.isPending}>
