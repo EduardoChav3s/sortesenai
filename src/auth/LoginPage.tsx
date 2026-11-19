@@ -55,7 +55,7 @@ const ROWS: string[][] = [
 
 // The three stickers on the login cover.
 const FAN = {
-  left: sticker('c08', 25_000, 'Homem Goiaba', 'Feito para chupar.', '/cards/homem-goiaba.png'),
+  left: sticker('c08', 25_000, 'Homem Goiaba', 'Feito para chupar.', '/cards/homem-goiaba.webp'),
   mid: sticker('c12', 400_000_000, 'Predador', 'Cuidado com ele...', '/cards/predador.webp'),
   right: sticker('c10', 3_000_000, 'Cruz Credo', 'Homem que não aceito nem no céu nem no inferno.', '/cards/cruz-credo.webp'),
 };

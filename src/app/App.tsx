@@ -19,20 +19,60 @@ const previewDeps = {
 import { Shell } from './Shell';
 import { ErrorScreen, NotFoundPage } from './Problems';
 import { RollPage } from '@/features/roll/RollPage';
-import { CollectionPage } from '@/features/collection/CollectionPage';
-import { GamesPage } from '@/features/games/GamesPage';
-import { ShopPage } from '@/features/shop/ShopPage';
-import { RankingPage } from '@/features/ranking/RankingPage';
-import { ProfilePage } from '@/features/profile/ProfilePage';
-import { SuggestPage } from '@/features/suggest/SuggestPage';
-import { AdminPage } from '@/features/admin/AdminPage';
-import { MorePage } from '@/features/more/MorePage';
-import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage';
-import { FriendsPage } from '@/features/friends/FriendsPage';
-import { PlayerPage } from '@/features/player/PlayerPage';
 
-// The chat page loads on its own, only when opened.
-const ChatPage = lazy(() => import('@/features/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
+// The roll screen comes with the first download. Every other page is its own small file: the first visit
+// downloads and starts less, and the other pages are fetched in the background once the site is idle,
+// so opening them stays instant.
+const pages = {
+  collection: () => import('@/features/collection/CollectionPage').then((m) => ({ default: m.CollectionPage })),
+  games: () => import('@/features/games/GamesPage').then((m) => ({ default: m.GamesPage })),
+  shop: () => import('@/features/shop/ShopPage').then((m) => ({ default: m.ShopPage })),
+  ranking: () => import('@/features/ranking/RankingPage').then((m) => ({ default: m.RankingPage })),
+  profile: () => import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+  suggest: () => import('@/features/suggest/SuggestPage').then((m) => ({ default: m.SuggestPage })),
+  admin: () => import('@/features/admin/AdminPage').then((m) => ({ default: m.AdminPage })),
+  more: () => import('@/features/more/MorePage').then((m) => ({ default: m.MorePage })),
+  artifacts: () => import('@/features/artifacts/ArtifactsPage').then((m) => ({ default: m.ArtifactsPage })),
+  friends: () => import('@/features/friends/FriendsPage').then((m) => ({ default: m.FriendsPage })),
+  player: () => import('@/features/player/PlayerPage').then((m) => ({ default: m.PlayerPage })),
+  chat: () => import('@/features/chat/ChatPage').then((m) => ({ default: m.ChatPage })),
+};
+const CollectionPage = lazy(pages.collection);
+const GamesPage = lazy(pages.games);
+const ShopPage = lazy(pages.shop);
+const RankingPage = lazy(pages.ranking);
+const ProfilePage = lazy(pages.profile);
+const SuggestPage = lazy(pages.suggest);
+const AdminPage = lazy(pages.admin);
+const MorePage = lazy(pages.more);
+const ArtifactsPage = lazy(pages.artifacts);
+const FriendsPage = lazy(pages.friends);
+const PlayerPage = lazy(pages.player);
+const ChatPage = lazy(pages.chat);
+
+/** Fetches the other pages after the first screen is up, one by one, when the browser has nothing else to do. */
+function usePrefetchPages() {
+  useEffect(() => {
+    if (import.meta.env.MODE === 'test') return;
+    const idle = (cb: () => void) =>
+      typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(cb, { timeout: 4000 }) : setTimeout(cb, 2500);
+    let gone = false;
+    // admin pages are only for admins: they load when opened
+    const queue = Object.entries(pages).filter(([name]) => name !== 'admin').map(([, load]) => load);
+    const next = () => {
+      const load = queue.shift();
+      if (!load || gone) return;
+      load().then(() => idle(next), () => undefined);
+    };
+    idle(next);
+    return () => {
+      gone = true;
+    };
+  }, []);
+}
+
+/** A lazily loaded page. While its file arrives (rare: they are prefetched) the page area stays empty. */
+const page = (el: JSX.Element) => <Suspense fallback={null}>{el}</Suspense>;
 
 const queryClient =new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000 } } });
 
@@ -47,6 +87,7 @@ export function App() {
   useEffect(() => {
     document.title = 'SorteSenai';
   }, []);
+  usePrefetchPages();
   return (
     <ErrorScreen>
     <QueryClientProvider client={queryClient}>
@@ -55,19 +96,19 @@ export function App() {
       <Routes>
         <Route element={<Shell />}>
           <Route index element={<RollPage />} />
-          <Route path="colecao" element={<CollectionPage />} />
-          <Route path="jogos" element={<GamesPage />} />
-          <Route path="loja" element={<ShopPage />} />
-          <Route path="ranking" element={<RankingPage />} />
-          <Route path="perfil" element={<ProfilePage />} />
-          <Route path="ideia" element={<SuggestPage />} />
+          <Route path="colecao" element={page(<CollectionPage />)} />
+          <Route path="jogos" element={page(<GamesPage />)} />
+          <Route path="loja" element={page(<ShopPage />)} />
+          <Route path="ranking" element={page(<RankingPage />)} />
+          <Route path="perfil" element={page(<ProfilePage />)} />
+          <Route path="ideia" element={page(<SuggestPage />)} />
           <Route path="sugerir" element={<Navigate to="/ideia" replace />} />
-          <Route path="artefatos" element={<ArtifactsPage />} />
-          <Route path="amigos" element={<FriendsPage />} />
-          <Route path="jogador/:id" element={<PlayerPage />} />
+          <Route path="artefatos" element={page(<ArtifactsPage />)} />
+          <Route path="amigos" element={page(<FriendsPage />)} />
+          <Route path="jogador/:id" element={page(<PlayerPage />)} />
           <Route path="*" element={<NotFoundPage />} />
-          <Route path="admin" element={<AdminPage />} />
-          <Route path="mais" element={<MorePage />} />
+          <Route path="admin" element={page(<AdminPage />)} />
+          <Route path="mais" element={page(<MorePage />)} />
           <Route path="chat" element={<Suspense fallback={<p className="page-sub">Abrindo o chat…</p>}><ChatPage /></Suspense>} />
         </Route>
       </Routes>
