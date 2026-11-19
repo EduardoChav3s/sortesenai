@@ -87,3 +87,29 @@ tr[data-banned='true'] td:first-child { opacity: 0.6; }
 .inline { display: flex; gap: var(--space-xs); }
 .inline .input:first-child { flex: 1; min-inline-size: 0; }
 .missionPick { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--space-xs); }
+
+/* live status under the tabs */
+.liveBar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); font-size: var(--text-xs); color: var(--color-muted); }
+.liveDot { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--color-rule); flex: none; }
+.liveBar[data-status='live'] .liveDot { background: var(--color-success); box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-success) 25%, transparent); animation: livePulse 2s ease-in-out infinite; }
+.liveBar[data-status='connecting'] .liveDot { background: var(--color-coin); }
+.liveNotice { font-weight: 700; color: var(--color-ink); padding: 0.25rem 0.6rem; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--color-coin) 40%, var(--surface)); }
+@keyframes livePulse { 50% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-success) 10%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .liveBar[data-status='live'] .liveDot { animation: none; } }
+
+/* global reset: only the server owner sees it */
+.danger { box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--color-error) 45%, transparent), var(--shadow-card); }
+.dangerConfirm { display: grid; gap: var(--space-sm); }
+
+/* shop item picture: one square frame, the image fits inside without stretching */
+.itemPic { inline-size: 96px; aspect-ratio: 1; border-radius: var(--radius-card); background: var(--color-paper); display: grid; place-items: center; overflow: hidden; }
+.itemPic img { inline-size: 100%; block-size: 100%; object-fit: contain; }
+.itemPicSm { inline-size: 40px; border-radius: 10px; vertical-align: middle; margin-inline-end: var(--space-xs); display: inline-grid; }
+.picRow { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; }
+.picTools { display: grid; gap: var(--space-xs); flex: 1 1 16rem; }
+.picField { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+.picField legend { padding: 0; margin-block-end: var(--space-2xs); font-weight: 600; font-size: var(--text-sm); }
+
+/* artifacts tab */
+.simpleList { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-xs); }
+.tierName { min-inline-size: 6rem; }

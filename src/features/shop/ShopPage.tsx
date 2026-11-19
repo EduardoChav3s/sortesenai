@@ -37,6 +37,20 @@ function ComingSoon() {
   );
 }
 
+const ATTR: Record<string, string> = { luck: 'Sorte', xp: 'XP', money: 'Moedas' };
+const pictureOf = (x: object): string | null => ('image' in x && typeof x.image === 'string' ? x.image : null);
+
+/** The item's picture in a fixed frame: shown whole, never stretched; hidden if the link stops working. */
+function ItemPicture({ src, className }: { src: string; className: string }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return null;
+  return (
+    <span className={`${s.pic} ${className}`}>
+      <img src={src} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />
+    </span>
+  );
+}
+
 export function ShopPage() {
   const [tab, setTab] = useState<Tab>('sorte');
   const shop = useShop();
@@ -48,7 +62,9 @@ export function ShopPage() {
   const titleInUse = isLive ? profile.data?.profile.title_name ?? null : demoTitle;
   const wear = (t: { id: string; name: string }) => (isLive ? setTitle.mutate({ title_id: t.id }) : setDemoTitle(t.name));
   const coins = isLive ? wallet.data?.coins ?? 0 : WALLET.coins;
-  const liveItems = (shop.data?.items ?? []).map((i) => ({ id: i.id, name: i.name, mult: Number(i.multiplier), duration: dur(i.duration_minutes, i.duration_pulls), price: Number(i.price), owned: i.owned }));
+  const liveItems = (shop.data?.items ?? []).map((i) => ({
+    id: i.id, name: i.name, mult: Number(i.multiplier), duration: dur(i.duration_minutes, i.duration_pulls), price: Number(i.price), owned: i.owned, image: i.image_url as string | null, attr: ATTR[i.attribute ?? 'luck'],
+  }));
   const legendLive = [...liveItems].sort((a, b) => b.mult - a.mult)[0];
   const legend = isLive ? legendLive : { ...LEGEND_POTION, owned: 0 };
   const potions = isLive ? liveItems.filter((i) => i !== legendLive) : POTIONS;
@@ -75,6 +91,7 @@ export function ShopPage() {
       {tab === 'sorte' ? (
         <>
           {legend && <section className={`panel ${s.legend}`} aria-labelledby="legend-name">
+            {pictureOf(legend) && <ItemPicture src={pictureOf(legend)!} className={s.legendPic} />}
             <div>
               <p className={s.legendMult}>{formatLuck(legend.mult)}</p>
               <h2 id="legend-name" className={s.legendName}>
@@ -94,10 +111,11 @@ export function ShopPage() {
           <ul className={s.grid}>
             {potions.map((p) => (
               <li key={p.id} className={`panel ${s.item}`}>
+                {pictureOf(p) && <ItemPicture src={pictureOf(p)!} className={s.itemPic} />}
                 <span className={s.flask}>{formatLuck(p.mult)}</span>
                 <h3 className={s.itemName}>{p.name}</h3>
                 <p className={s.itemMeta}>
-                  Sorte {formatLuck(p.mult)} por {p.duration}
+                  {'attr' in p ? String(p.attr) : 'Sorte'} {formatLuck(p.mult)} por {p.duration}
                 </p>
                 {p.owned > 0 && <span className={s.owned}>Você tem {p.owned}</span>}
                 <div className={s.itemFoot}>

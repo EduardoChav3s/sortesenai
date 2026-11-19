@@ -20,12 +20,31 @@ test('bad game settings get a message', () => {
   expect(settingsPatch({ ...base, bets: '' })).toEqual({ ok: false, error: 'Apostas: coloque pelo menos um valor.' });
 });
 
+test('a potion picture: a pasted https link, a sent file, or none', () => {
+  const base = { name: 'Gota', description: '', price: '150', multiplier: '2', kind: 'minutes' as const, duration: '10', active: true };
+  expect(itemPayload({ ...base, image_url: ' https://site.test/gota.png ' })).toMatchObject({ ok: true, payload: { image_url: 'https://site.test/gota.png', image_path: null } });
+  expect(itemPayload({ ...base, image_url: 'https://x.supabase.co/storage/v1/object/public/shop/a.webp', image_path: 'a.webp' })).toMatchObject({
+    ok: true,
+    payload: { image_path: 'a.webp' },
+  });
+  expect(itemPayload({ ...base, image_url: '' })).toMatchObject({ ok: true, payload: { image_url: null, image_path: null } });
+  expect(itemPayload({ ...base, image_url: 'http://site.test/gota.png' })).toEqual({ ok: false, error: 'O link da imagem precisa começar com https://' });
+  expect(itemPayload({ ...base, image_url: 'javascript:alert(1)' })).toEqual({ ok: false, error: 'O link da imagem precisa começar com https://' });
+});
+
 test('a potion needs a name, a price, a boost over 1x and a duration', () => {
   expect(itemPayload({ name: ' Gota ', description: 'x', price: '150', multiplier: '2,5', kind: 'minutes', duration: '10', active: true })).toEqual({
     ok: true,
-    payload: { name: 'Gota', description: 'x', price: 150, multiplier: 2.5, duration_minutes: 10, duration_pulls: null, active: true },
+    payload: { name: 'Gota', description: 'x', price: 150, multiplier: 2.5, duration_minutes: 10, duration_pulls: null, active: true, image_url: null, image_path: null, attribute: 'luck' },
   });
   expect(itemPayload({ name: 'Gota', description: '', price: '150', multiplier: '1', kind: 'pulls', duration: '5', active: true })).toEqual({ ok: false, error: 'A sorte precisa ser maior que 1x.' });
   expect(itemPayload({ name: '', description: '', price: '150', multiplier: '2', kind: 'pulls', duration: '5', active: true })).toEqual({ ok: false, error: 'Dê um nome à poção.' });
   expect(itemPayload({ name: 'Gota', description: '', price: '150', multiplier: '2', kind: 'pulls', duration: '0', active: true })).toEqual({ ok: false, error: 'Duração: use um número maior que zero.' });
+});
+
+test('a potion says what it amplifies: luck (default), XP or coins', () => {
+  const base = { name: 'Gota', description: '', price: '150', multiplier: '2', kind: 'minutes' as const, duration: '10', active: true };
+  expect(itemPayload(base)).toMatchObject({ ok: true, payload: { attribute: 'luck' } });
+  expect(itemPayload({ ...base, attribute: 'xp' })).toMatchObject({ ok: true, payload: { attribute: 'xp' } });
+  expect(itemPayload({ ...base, attribute: 'money' })).toMatchObject({ ok: true, payload: { attribute: 'money' } });
 });

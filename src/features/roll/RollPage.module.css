@@ -111,3 +111,5 @@
 .soundToggle { margin-inline-start: var(--space-sm); padding: 0.25rem 0.6rem; border: 0; border-radius: var(--radius-pill); cursor: pointer; font: 600 var(--text-xs)/1 var(--font-body); color: var(--color-muted); background: var(--color-paper-2); }
 .soundToggle[aria-pressed='true'] { color: var(--color-ink); }
 .soundToggle:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+
+.reelEmpty { position: relative; z-index: 1; justify-self: center; max-inline-size: 28ch; text-align: center; font-weight: 600; color: var(--color-muted); }

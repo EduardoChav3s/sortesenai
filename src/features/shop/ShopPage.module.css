@@ -39,3 +39,11 @@
 .soon { display: grid; place-content: center; justify-items: center; gap: var(--space-xs); aspect-ratio: 3 / 4; border-radius: var(--radius-card); background: var(--color-paper); outline: 2px dashed var(--color-rule); outline-offset: -2px; color: var(--color-muted); text-align: center; padding: var(--space-lg); }
 .soonMark { font: 800 3rem/1 var(--font-display); color: var(--color-rule); }
 .soonText { font-weight: 600; font-size: var(--text-sm); }
+
+/* item pictures: one frame size per place, the image fits whole inside (no stretching) */
+.pic { display: grid; place-items: center; overflow: hidden; border-radius: var(--radius-card); background: color-mix(in oklab, var(--surface) 70%, var(--color-paper)); }
+.pic img { inline-size: 100%; block-size: 100%; object-fit: contain; }
+.itemPic { inline-size: 100%; aspect-ratio: 4 / 3; }
+.legendPic { inline-size: 120px; aspect-ratio: 1; background: color-mix(in oklab, var(--surface) 20%, transparent); }
+.legend:has(.legendPic) { grid-template-columns: auto minmax(0, 1fr) auto; }
+@media (max-width: 40rem) { .legend:has(.legendPic) { grid-template-columns: 1fr; } }

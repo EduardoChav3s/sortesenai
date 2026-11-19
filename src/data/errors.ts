@@ -9,6 +9,8 @@ export type ApiErrorCode =
   | 'already_claimed'
   | 'session_expired'
   | 'not_authenticated'
+  | 'slow_down'
+  | 'missing_materials'
   | 'unknown';
 
 export class ApiError extends Error {

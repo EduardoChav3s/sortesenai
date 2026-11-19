@@ -23,6 +23,18 @@ export const IconRoll = (p: IconProps) => (
     <path d="M9 6v12M15 6v12" />
   </svg>
 );
+export const IconBell = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+    <path d="M10 20.5a2 2 0 0 0 4 0" />
+  </svg>
+);
+export const IconChat = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5z" />
+    <path d="M8.5 9h7M8.5 12h4" />
+  </svg>
+);
 export const IconCards = (p: IconProps) => (
   <svg {...base(p)}>
     <rect x="7" y="4" width="12" height="16" rx="2.5" />

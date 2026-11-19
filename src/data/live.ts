@@ -13,6 +13,10 @@ export function useWallet() {
 export function useLuck() {
   return useQuery({ queryKey: ['luck'], queryFn: () => api!.luck(), enabled: isLive });
 }
+/** All active cards in full for the roll's reel. Refreshed every minute so a deleted card leaves the reel soon. */
+export function useReelCards() {
+  return useQuery({ queryKey: ['reel'], queryFn: () => api!.reelCards(), enabled: isLive, refetchInterval: 60_000 });
+}
 export function useCollection() {
   return useQuery({ queryKey: ['collection'], queryFn: () => api!.getCollection(), enabled: isLive });
 }
@@ -106,11 +110,13 @@ export const useMyProfile = () =>
 export const useShop = () => useQuery({ queryKey: ['shop'], queryFn: fetchShop, enabled: isLive });
 export const useGameLimits = () => useQuery({ queryKey: ['limits'], queryFn: () => api!.gameLimits(), enabled: isLive });
 export const useMySuggestions = () => useQuery({ queryKey: ['suggestions'], queryFn: fetchMySuggestions, enabled: isLive });
-export const useRole = () => useQuery({ queryKey: ['role'], queryFn: fetchRole, enabled: isLive });
-export const useAdminCards = () => useQuery({ queryKey: ['admin-cards'], queryFn: () => api!.adminListCards(), enabled: isLive });
+// Checked every 30 s, so a player who gets or loses admin sees the Admin link change without reloading.
+export const useRole = () => useQuery({ queryKey: ['role'], queryFn: fetchRole, enabled: isLive, refetchInterval: 30_000 });
+export const useAdminCards = () => useQuery({ queryKey: ['admin-cards'], queryFn: () => api!.adminListCards(), enabled: isLive, refetchInterval: 20_000 });
 export const useAdminSuggestions = (status: 'pending' | 'approved' | 'rejected') =>
-  useQuery({ queryKey: ['admin-suggestions', status], queryFn: () => api!.adminListSuggestions(status), enabled: isLive });
-export const useAdminPlayers = () => useQuery({ queryKey: ['admin-players'], queryFn: () => api!.adminListPlayers(), enabled: isLive });
+  useQuery({ queryKey: ['admin-suggestions', status], queryFn: () => api!.adminListSuggestions(status), enabled: isLive, refetchInterval: 20_000 });
+// Coins change on every roll (no live note for that), so the player list polls.
+export const useAdminPlayers = () => useQuery({ queryKey: ['admin-players'], queryFn: () => api!.adminListPlayers(), enabled: isLive, refetchInterval: 15_000 });
 export const useAllowedEmails = () => useQuery({ queryKey: ['emails'], queryFn: fetchAllowedEmails, enabled: isLive });
 
 export function useShopActions() {
@@ -156,20 +162,20 @@ export function useGameDone() {
 export function useAdminActions() {
   const inv = useInvalidate();
   return {
-    setActive: useMutation({ mutationFn: (v: { id: string; active: boolean }) => api!.adminSetCardActive(v.id, v.active), onSuccess: () => inv('admin-cards') }),
+    setActive: useMutation({ mutationFn: (v: { id: string; active: boolean }) => api!.adminSetCardActive(v.id, v.active), onSuccess: () => inv('admin-cards', 'reel') }),
     upsertCard: useMutation({
       mutationFn: async (p: { title: string; joke: string; odds_n: number; image?: File | null }) => {
         const image_path = p.image ? await uploadImage('cards', p.image) : undefined;
         return api!.adminUpsertCard({ title: p.title, joke: p.joke, odds_n: p.odds_n, ...(image_path ? { image_path } : {}) });
       },
-      onSuccess: () => inv('admin-cards', 'collection'),
+      onSuccess: () => inv('admin-cards', 'collection', 'reel'),
     }),
     editCard: useMutation({
       mutationFn: async (p: { id: string; title: string; joke: string; odds_n: number; image?: File | null }) => {
         const image_path = p.image ? await uploadImage('cards', p.image) : undefined;
         return api!.adminUpsertCard({ id: p.id, title: p.title, joke: p.joke, odds_n: p.odds_n, ...(image_path ? { image_path } : {}) });
       },
-      onSuccess: () => inv('admin-cards', 'collection', 'feed'),
+      onSuccess: () => inv('admin-cards', 'collection', 'feed', 'reel'),
     }),
     deleteCard: useMutation({
       mutationFn: async (id: string) => {
@@ -177,7 +183,7 @@ export function useAdminActions() {
         if (r.image_path) await removeImage('cards', r.image_path).catch(() => undefined);
         return r;
       },
-      onSettled: () => inv('admin-cards', 'collection', 'feed', 'ranking', 'level', 'profile'),
+      onSettled: () => inv('admin-cards', 'collection', 'feed', 'ranking', 'level', 'profile', 'reel'),
     }),
     approveIdea: useMutation({
       mutationFn: async (v: { id: string; title: string; joke: string; odds_n: number; image_path: string | null; usePhoto: boolean }) => {
@@ -216,7 +222,7 @@ export function useAdminActions() {
         const image_path = await uploadImage('cards', p.image);
         return api!.adminUpsertCard({ id: p.card.id, title: p.card.title, joke: p.card.joke, odds_n: p.card.odds_n, image_path });
       },
-      onSuccess: () => inv('admin-cards', 'collection'),
+      onSuccess: () => inv('admin-cards', 'collection', 'reel'),
     }),
     addEmail: useMutation({ mutationFn: (e: string) => api!.adminAddEmail(e), onSuccess: () => inv('emails') }),
     removeEmail: useMutation({ mutationFn: (e: string) => api!.adminRemoveEmail(e), onSuccess: () => inv('emails') }),
@@ -311,7 +317,7 @@ export const useRareMusic = () =>
     enabled: isLive,
     staleTime: 10 * 60_000,
   });
-export const useAdminTracks = () => useQuery({ queryKey: ['music', 'admin'], queryFn: async () => (await api!.adminListTracks()).map(playable), enabled: isLive });
+export const useAdminTracks = () => useQuery({ queryKey: ['music', 'admin'], queryFn: async () => (await api!.adminListTracks()).map(playable), enabled: isLive, refetchInterval: 30_000 });
 
 export function useMusicActions() {
   const inv = useInvalidate();
@@ -341,10 +347,10 @@ export function useMusicActions() {
 
 // ---------------------------------------------------------------- admin: game settings and shop
 import { fetchSettings } from './client';
-export const useGameSettings = () => useQuery({ queryKey: ['settings'], queryFn: fetchSettings, enabled: isLive });
+export const useGameSettings = () => useQuery({ queryKey: ['settings'], queryFn: fetchSettings, enabled: isLive, refetchInterval: 30_000 });
 export const useAdminMissionDefs = () => useQuery({ queryKey: ['mission-defs'], queryFn: () => api!.adminMissionDefs(), enabled: isLive, staleTime: Infinity });
-export const useAdminItems = () => useQuery({ queryKey: ['admin-items'], queryFn: () => api!.adminListItems(), enabled: isLive });
-export const useAdminTitles = () => useQuery({ queryKey: ['admin-titles'], queryFn: () => api!.adminListTitles(), enabled: isLive });
+export const useAdminItems = () => useQuery({ queryKey: ['admin-items'], queryFn: () => api!.adminListItems(), enabled: isLive, refetchInterval: 30_000 });
+export const useAdminTitles = () => useQuery({ queryKey: ['admin-titles'], queryFn: () => api!.adminListTitles(), enabled: isLive, refetchInterval: 30_000 });
 
 export function useAdminGameActions() {
   const inv = useInvalidate();
@@ -362,4 +368,60 @@ export function useAdminGameActions() {
       onSettled: () => inv('admin-titles', 'shop'),
     }),
   };
+}
+
+// ---------------------------------------------------------------- global reset (server owner only)
+export const useServerOwner = () => useQuery({ queryKey: ['server-owner'], queryFn: () => api!.serverOwnerStatus(), enabled: isLive });
+export function useGlobalReset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (phrase: string) => api!.adminGlobalReset(phrase),
+    onSettled: () => qc.invalidateQueries(), // every player's coins and cards changed
+  });
+}
+
+// ---------------------------------------------------------------- admin screen, live
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from './client';
+import { adminEventNotice, keysForAdminEvent } from './adminEvents';
+
+export type LiveStatus = 'connecting' | 'live' | 'off';
+
+/**
+ * Listens to admin_events while the admin screen is open: each new note refreshes the lists it touches,
+ * and a change made by someone else shows a short notice. The lists also poll, in case the line drops.
+ */
+export function useAdminLive(enabled: boolean, me: string | null | undefined) {
+  const qc = useQueryClient();
+  const [status, setStatus] = useState<LiveStatus>('connecting');
+  const [notice, setNotice] = useState<string | null>(null);
+  const meRef = useRef(me);
+  meRef.current = me;
+  useEffect(() => {
+    if (!enabled || !isLive || !supabase) {
+      setStatus('off');
+      return;
+    }
+    setStatus('connecting');
+    const ch = supabase
+      .channel('admin-ao-vivo')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'admin_events' }, (payload) => {
+        const row = payload.new as { kind?: string; actor?: string | null };
+        const kind = row.kind ?? '';
+        for (const k of keysForAdminEvent(kind)) void qc.invalidateQueries({ queryKey: [k] });
+        const n = adminEventNotice(kind, row.actor ?? null, meRef.current);
+        if (n) setNotice(n);
+      })
+      .subscribe((s) => setStatus(s === 'SUBSCRIBED' ? 'live' : s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED' ? 'off' : 'connecting'));
+    return () => {
+      void supabase?.removeChannel(ch);
+    };
+  }, [enabled, qc]);
+  // a notice stays for a few seconds
+  useEffect(() => {
+    if (!notice) return;
+    const t = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [notice]);
+  return { status, notice };
 }

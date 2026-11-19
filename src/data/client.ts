@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createApi, type Api, type Sign } from './api';
+import { cachedSigner } from './signCache';
 import { audioPath, checkAudio, checkImage, imagePath } from './upload';
 import type { AuthDeps } from '@/auth/AuthGate';
 import { toLoginError } from '@/auth/authErrors';
@@ -11,10 +12,11 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const supabase: SupabaseClient | null = url && anonKey ? createClient(url, anonKey) : null;
 
 // Private buckets: images are shown through urls that expire in one hour.
-const sign: Sign = async (bucket, paths) => {
+// Each photo keeps the same link for most of its hour, so the browser downloads it once (see signCache).
+const sign: Sign = cachedSigner(async (bucket, paths) => {
   const { data } = await supabase!.storage.from(bucket).createSignedUrls(paths, 3600);
   return Object.fromEntries((data ?? []).filter((d) => d.path && d.signedUrl).map((d) => [d.path as string, d.signedUrl as string]));
-};
+});
 
 export const api: Api | null = supabase
   ? createApi(async (fn, args) => {
@@ -24,7 +26,7 @@ export const api: Api | null = supabase
   : null;
 
 /** Uploads an image and returns its storage path. Profile and suggestion files go in the player's own folder. */
-export async function uploadImage(bucket: 'cards' | 'profile' | 'suggestions', file: File): Promise<string> {
+export async function uploadImage(bucket: 'cards' | 'profile' | 'suggestions' | 'chat', file: File): Promise<string> {
   const problem = checkImage(file);
   if (problem) throw new Error(problem);
   const folder = bucket === 'cards' ? undefined : (await myUserId()) ?? undefined;
@@ -32,6 +34,19 @@ export async function uploadImage(bucket: 'cards' | 'profile' | 'suggestions', f
   const { error } = await supabase!.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
   if (error) throw new Error('Não deu para enviar a imagem.');
   return path;
+}
+
+/** Shop item pictures live in the public 'shop' bucket: the link never expires, so it is saved on the item. */
+export async function uploadShopImage(file: File, bucket: 'shop' | 'artifacts' = 'shop'): Promise<{ path: string; url: string }> {
+  const problem = checkImage(file);
+  if (problem) throw new Error(problem);
+  const path = imagePath(file);
+  const { error } = await supabase!.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error('Não deu para enviar a imagem.');
+  return { path, url: supabase!.storage.from(bucket).getPublicUrl(path).data.publicUrl };
+}
+export async function removeShopImage(path: string, bucket: 'shop' | 'artifacts' = 'shop') {
+  await supabase!.storage.from(bucket).remove([path]);
 }
 
 export const authDeps: AuthDeps | null = supabase
@@ -98,12 +113,12 @@ async function rows<T>(q: PromiseLike<{ data: unknown; error: { message: string 
 export async function myUserId() {
   return (await supabase!.auth.getSession()).data.session?.user.id ?? null;
 }
-export interface ShopItem { id: string; name: string; description: string; price: number; multiplier: number; duration_minutes: number | null; duration_pulls: number | null }
+export interface ShopItem { id: string; name: string; description: string; price: number; multiplier: number; duration_minutes: number | null; duration_pulls: number | null; image_url: string | null; attribute?: 'luck' | 'xp' | 'money' }
 export interface ShopTitle { id: string; name: string; description: string; price: number | null }
 export const fetchShop = async () => {
   const uid = await myUserId();
   const [items, titles, mine, myTitles] = await Promise.all([
-    rows<ShopItem>(supabase!.from('items').select('id, name, description, price, multiplier, duration_minutes, duration_pulls').order('price')),
+    rows<ShopItem>(supabase!.from('items').select('id, name, description, price, multiplier, duration_minutes, duration_pulls, image_url, attribute').order('price')),
     rows<ShopTitle>(supabase!.from('titles').select('id, name, description, price').not('price', 'is', null).order('price')),
     rows<{ item_id: string; quantity: number }>(supabase!.from('user_items').select('item_id, quantity')),
     rows<{ title_id: string }>(supabase!.from('user_titles').select('title_id').eq('user_id', uid)),
@@ -125,7 +140,7 @@ export async function fetchRole() {
 }
 
 /** Removes a stored image (admin: a deleted card's art). Failing here only leaves an unused file. */
-export async function removeImage(bucket: 'cards' | 'profile' | 'suggestions', path: string) {
+export async function removeImage(bucket: 'cards' | 'profile' | 'suggestions' | 'chat', path: string) {
   await supabase!.storage.from(bucket).remove([path]);
 }
 

@@ -5,7 +5,7 @@ import type { CardContent, CardLocked, FeedEvent, FriendStatus, GameId, PlayerSu
 
 export type Rpc = (fn: string, args?: object) => Promise<{ data: unknown; error: { message: string } | null }>;
 /** Turns private storage paths into short-lived urls. Returns path -> url. */
-export type Sign = (bucket: 'cards' | 'profile' | 'suggestions', paths: string[]) => Promise<Record<string, string>>;
+export type Sign = (bucket: 'cards' | 'profile' | 'suggestions' | 'chat', paths: string[]) => Promise<Record<string, string>>;
 
 /** Pulls up to n times, one after the other. Stops at the first error and keeps what came before. */
 export async function rollMany<T>(pull: () => Promise<T>, n: number): Promise<{ results: T[]; error: unknown }> {
@@ -22,7 +22,7 @@ export async function rollMany<T>(pull: () => Promise<T>, n: number): Promise<{ 
 
 const KNOWN: ApiErrorCode[] = [
   'insufficient_coins', 'not_found', 'forbidden', 'not_invited', 'banned', 'invalid',
-  'nickname_taken', 'already_claimed', 'session_expired', 'not_authenticated',
+  'nickname_taken', 'already_claimed', 'session_expired', 'not_authenticated', 'slow_down', 'missing_materials',
 ];
 
 type DbCard = CardLocked & { number?: number; title?: string; joke?: string; image_path?: string | null };
@@ -99,7 +99,72 @@ export interface AdminSuggestion {
   author: { id: string; nickname: string; avatar_url: string | null } | null;
 }
 
-export interface ShopItemRow { id: string; name: string; description: string; price: number; multiplier: number; duration_minutes: number | null; duration_pulls: number | null; active: boolean }
+// ---------------------------------------------------------------- live chat
+export type ChatKind = 'text' | 'image' | 'offer' | 'coins' | 'system';
+export interface ChatBid { id: number; status: 'open' | 'accepted' | 'rejected'; coins: number; created_at: string; bidder: PlayerSummary; card: AlbumCard | null }
+export interface ChatMessage {
+  id: number;
+  kind: ChatKind;
+  body: string | null;
+  image_url: string | null;
+  created_at: string;
+  author: PlayerSummary;
+  card: AlbumCard | null;
+  price: number | null;
+  to: PlayerSummary | null;
+  amount: number | null;
+  status: 'open' | 'done' | 'cancelled' | null;
+  buyer: PlayerSummary | null;
+  /** An open offer whose seller still has a spare copy. */
+  available: boolean;
+  bids: ChatBid[];
+}
+type DbChatBid = Omit<ChatBid, 'card' | 'coins'> & { card: DbCard | null; coins: number | string };
+type DbChat = Omit<ChatMessage, 'image_url' | 'card' | 'price' | 'amount' | 'bids'> & {
+  image_path: string | null; card: DbCard | null; price: number | string | null; amount: number | string | null; bids: DbChatBid[] | null;
+};
+const num = (v: number | string | null) => (v === null ? null : Number(v));
+
+// ---------------------------------------------------------------- artifacts and fragments
+export type Attribute = 'luck' | 'xp' | 'money';
+export interface AttributeValue { base: number; amp: number; value: number }
+export interface Fragment { id: string; name: string; color: string; quantity: number }
+export interface SpareCard { card: AlbumCard; spares: number; gives: { fragment_type: string; name: string; color: string; amount: number } | null }
+export interface ConvertResult { card: string; copies: number; fragment: string; color: string; gained: number }
+export interface RecipeLine { fragment_type: string; name: string; color: string; amount: number; have: number }
+export interface Artifact {
+  id: string; name: string; description: string; image_url: string | null; rarity: string;
+  luck_mult: number; xp_mult: number; money_mult: number; active: boolean; recipe: RecipeLine[];
+}
+export type ForgeArtifact = Artifact & { can_craft: boolean; owned: number };
+export type MyArtifact = Artifact & { user_artifact_id: number; equipped: boolean; crafted_at: string };
+export interface AdminArtifact {
+  id: string; name: string; description: string; image_url: string | null; image_path: string | null; rarity: string;
+  luck_mult: number; xp_mult: number; money_mult: number; active: boolean; owners: number; recipe: { fragment_type: string; amount: number }[];
+}
+export interface FragmentType { id: string; name: string; color: string; active: boolean; sort: number }
+export interface ArtifactConfig {
+  artifacts: AdminArtifact[];
+  fragment_types: FragmentType[];
+  rules: { tier: string; fragment_type: string | null; amount: number }[];
+  blocked_cards: { id: string; title: string; number: number; odds_n: number }[];
+  slots: number;
+}
+const numArtifact = <A extends { luck_mult: unknown; xp_mult: unknown; money_mult: unknown }>(a: A): A => ({
+  ...a, luck_mult: Number(a.luck_mult), xp_mult: Number(a.xp_mult), money_mult: Number(a.money_mult),
+});
+
+// ---------------------------------------------------------------- the bell and the daily chest
+export interface Notice { id: number; kind: string; body: string; link: string | null; read: boolean; created_at: string }
+export interface ChestPrize { id: string; kind: 'coins' | 'fragments' | 'potion'; amount: number; label: string; chance: number }
+export interface ChestResult { prize: { id: string | null; kind: string; amount: number; label: string; coins_given: number | null }; coins_after: number }
+export interface AdminChestPrize {
+  id: string; kind: 'coins' | 'fragments' | 'potion'; amount: number; fragment_type: string | null; item_id: string | null;
+  weight: number; active: boolean; label: string; chance: number | null;
+}
+
+export interface ServerOwnerStatus { owner: boolean; last_reset?: { at: string; by: string | null; details: { players: number; cards_removed: number; coins_removed: number } } | null }
+export interface ShopItemRow { id: string; name: string; description: string; price: number; multiplier: number; duration_minutes: number | null; duration_pulls: number | null; active: boolean; image_url: string | null; image_path: string | null; attribute?: 'luck' | 'xp' | 'money' }
 export interface ShopTitleRow { id: string; name: string; description: string; price: number | null; active: boolean; condition: { type: string } & Record<string, unknown> }
 
 /** A row of the admin player list (the admin sees every profile field). */
@@ -159,6 +224,13 @@ export function createApi(rpc: Rpc, sign?: Sign) {
     async pull(): Promise<PullResult & { card: AlbumCard }> {
       const r = await call<PullResult & { card: DbCard }>('pull');
       return { ...r, card: fullCard(r.card, await cardUrls([r.card])) };
+    },
+
+    /** Every active card in full, for the roll's reel (the album still hides missing cards). */
+    async reelCards(): Promise<AlbumCard[]> {
+      const rows = (await call<DbCard[] | null>('get_reel_cards')) ?? [];
+      const urls = await cardUrls(rows);
+      return rows.map((c) => fullCard(c, urls));
     },
 
     async getCollection(): Promise<AlbumEntry[]> {
@@ -323,9 +395,94 @@ export function createApi(rpc: Rpc, sign?: Sign) {
     adminMissionDefs: async (): Promise<{ id: string; title: string; goal: number; coins: number }[]> => (await call<{ id: string; title: string; goal: number; coins: number }[] | null>('admin_mission_defs')) ?? [],
     adminListItems: async (): Promise<ShopItemRow[]> => (await call<ShopItemRow[] | null>('admin_list_items')) ?? [],
     adminListTitles: async (): Promise<ShopTitleRow[]> => (await call<ShopTitleRow[] | null>('admin_list_titles')) ?? [],
-    adminUpsertItem: (p: Omit<ShopItemRow, 'id'> & { id?: string }) => call<ShopItemRow>('admin_upsert_item', { p }),
+    adminUpsertItem: (p: Omit<ShopItemRow, 'id' | 'image_url' | 'image_path'> & { id?: string; image_url?: string | null; image_path?: string | null }) =>
+      call<ShopItemRow>('admin_upsert_item', { p }),
     adminUpsertTitle: (p: { id?: string; name: string; description: string; price: number | null; active: boolean; condition?: unknown }) =>
       call<ShopTitleRow>('admin_upsert_title', { p }),
+
+    // live chat
+    async getChat(before?: number): Promise<ChatMessage[]> {
+      const rows = (await call<DbChat[] | null>('get_chat', { p_before: before ?? null })) ?? [];
+      const cards = rows.flatMap((m) => [m.card, ...(m.bids ?? []).map((b) => b.card)]).filter((c): c is DbCard => !!c);
+      const people = rows.flatMap((m) => [m.author, m.to, m.buyer, ...(m.bids ?? []).map((b) => b.bidder)]);
+      const [urls, pics, photos] = await Promise.all([
+        cardUrls(cards),
+        signPaths('profile', people.map((p) => p?.avatar_url)),
+        signPaths('chat', rows.map((m) => m.image_path)),
+      ]);
+      const who = <P extends PlayerSummary | null>(p: P): P => (p ? { ...p, avatar_url: avatarUrl(p.avatar_url, pics) } : p);
+      return rows.map(({ image_path, ...m }) => ({
+        ...m,
+        image_url: image_path ? photos[image_path] ?? null : null,
+        author: who(m.author),
+        to: who(m.to),
+        buyer: who(m.buyer),
+        card: m.card ? fullCard(m.card, urls) : null,
+        price: num(m.price),
+        amount: num(m.amount),
+        bids: (m.bids ?? []).map((b) => ({ ...b, coins: Number(b.coins), bidder: who(b.bidder), card: b.card ? fullCard(b.card, urls) : null })),
+      }));
+    },
+    chatSend: (text: string | null, imagePath: string | null) => call<{ id: number }>('chat_send', { p_text: text, p_image: imagePath }),
+    chatSendCoins: (to: string, amount: number, note: string | null) => call<{ id: number }>('chat_send_coins', { p_to: to, p_amount: amount, p_note: note }),
+    chatOffer: (cardId: string, price: number | null, note: string | null) => call<{ id: number }>('chat_offer', { p_card: cardId, p_price: price, p_note: note }),
+    chatBuy: (offer: number) => call<{ id: number }>('chat_buy', { p_offer: offer }),
+    chatBid: (offer: number, cardId: string | null, coins: number) => call<{ id: number }>('chat_bid', { p_offer: offer, p_card: cardId, p_coins: coins }),
+    chatAcceptBid: (bid: number) => call<{ id: number }>('chat_accept_bid', { p_bid: bid }),
+    chatCancelOffer: (offer: number) => call<{ id: number }>('chat_cancel_offer', { p_offer: offer }),
+    adminDeleteChatMessage: (id: number) => call<{ image_path: string | null }>('admin_delete_chat_message', { p_msg: id }),
+
+    // artifacts and fragments (every rule is checked in the database)
+    async attributes(): Promise<Record<Attribute, AttributeValue>> {
+      const r = await call<Record<Attribute, AttributeValue>>('get_attributes');
+      const n = (v: AttributeValue | undefined): AttributeValue => ({ base: Number(v?.base ?? 1), amp: Number(v?.amp ?? 0), value: Number(v?.value ?? 1) });
+      return { luck: n(r?.luck), xp: n(r?.xp), money: n(r?.money) };
+    },
+    fragments: async (): Promise<Fragment[]> => ((await call<Fragment[] | null>('get_fragments')) ?? []).map((f) => ({ ...f, quantity: Number(f.quantity) })),
+    async spareFragments(): Promise<SpareCard[]> {
+      const rows = (await call<(Omit<SpareCard, 'card'> & { card: DbCard })[] | null>('get_spare_fragments')) ?? [];
+      const urls = await cardUrls(rows.map((r) => r.card));
+      return rows.map((r) => ({ ...r, card: fullCard(r.card, urls) }));
+    },
+    convertDuplicates: (cardId: string, quantity: number) => call<ConvertResult>('convert_duplicates', { p_card: cardId, p_quantity: quantity }),
+    convertAllDuplicates: async (): Promise<ConvertResult[]> => (await call<ConvertResult[] | null>('convert_all_duplicates')) ?? [],
+    forge: async (): Promise<ForgeArtifact[]> => ((await call<ForgeArtifact[] | null>('get_forge')) ?? []).map(numArtifact),
+    craftArtifact: (artifactId: string, requestId: string) => call<{ id: number; repeated: boolean }>('craft_artifact', { p_artifact: artifactId, p_request: requestId }),
+    async myArtifacts(): Promise<{ slots: number; items: MyArtifact[] }> {
+      const r = await call<{ slots: number; items: MyArtifact[] | null }>('get_my_artifacts');
+      return { slots: Number(r?.slots ?? 3), items: (r?.items ?? []).map(numArtifact) };
+    },
+    setArtifactActive: (id: number, active: boolean) => call<{ id: number; active: boolean }>('set_artifact_active', { p_id: id, p_active: active }),
+    async adminArtifactConfig(): Promise<ArtifactConfig> {
+      const c = await call<ArtifactConfig>('admin_artifact_config');
+      return { ...c, artifacts: (c.artifacts ?? []).map(numArtifact), rules: c.rules ?? [], fragment_types: c.fragment_types ?? [], blocked_cards: c.blocked_cards ?? [] };
+    },
+    adminUpsertArtifact: (p: object) => call<AdminArtifact>('admin_upsert_artifact', { p }),
+    adminDeleteArtifact: (id: string) => call<{ image_path: string | null; owners: number }>('admin_delete_artifact', { p_id: id }),
+    adminUpsertFragmentType: (p: { id?: string; name: string; color: string; active: boolean }) => call<FragmentType>('admin_upsert_fragment_type', { p }),
+    adminSetFragmentRule: (tier: string, fragmentType: string | null, amount: number) => call<object>('admin_set_fragment_rule', { p_tier: tier, p_fragment: fragmentType, p_amount: amount }),
+    adminSetCardFragments: (cardId: string, allowed: boolean) => call<object>('admin_set_card_fragments', { p_card: cardId, p_allowed: allowed }),
+    adminSetArtifactSlots: (slots: number) => call<{ slots: number }>('admin_set_artifact_slots', { p_slots: slots }),
+
+    // the bell and the daily chest
+    async notifications(): Promise<{ unread: number; items: Notice[] }> {
+      const r = await call<{ unread: number; items: Notice[] | null }>('get_notifications');
+      return { unread: Number(r?.unread ?? 0), items: r?.items ?? [] };
+    },
+    markNotificationsRead: (ids: number[] | null) => call<{ marked: number }>('mark_notifications_read', { p_ids: ids }),
+    async chest(): Promise<{ claimed_today: boolean; next_at: string; prizes: ChestPrize[] }> {
+      const r = await call<{ claimed_today: boolean; next_at: string; prizes: ChestPrize[] | null }>('get_chest');
+      return { ...r, prizes: (r?.prizes ?? []).map((p) => ({ ...p, chance: Number(p.chance) })) };
+    },
+    openChest: () => call<ChestResult>('claim_daily'),
+    adminChestPrizes: async (): Promise<AdminChestPrize[]> =>
+      ((await call<AdminChestPrize[] | null>('admin_list_chest_prizes')) ?? []).map((p) => ({ ...p, chance: p.chance === null ? null : Number(p.chance) })),
+    adminUpsertChestPrize: (p: Partial<AdminChestPrize>) => call<AdminChestPrize>('admin_upsert_chest_prize', { p }),
+    adminDeleteChestPrize: (id: string) => call<{ id: string }>('admin_delete_chest_prize', { p_id: id }),
+
+    // global reset: only the server owner (checked in the database)
+    serverOwnerStatus: () => call<ServerOwnerStatus>('server_owner_status'),
+    adminGlobalReset: (phrase: string) => call<{ players: number; cards_removed: number; coins_removed: number }>('admin_global_reset', { p_phrase: phrase }),
 
     adminDeleteCard: (id: string) => call<{ owners: number; image_path: string | null }>('admin_delete_card', { p_card: id }),
     async adminListPlayers(): Promise<AdminPlayer[]> {

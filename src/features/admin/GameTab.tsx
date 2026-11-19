@@ -1,9 +1,23 @@
 // Admin "Jogo": the game rules, the weekly event card and the daily missions.
 import { useEffect, useState, type FormEvent } from 'react';
 import { formatOdds } from '@/lib/format';
-import { isLive, useAdminCards, useAdminGameActions, useAdminMissionDefs, useGameSettings, useWeeklyEvent } from '@/data/live';
+import { isLive, useAdminCards, useAdminGameActions, useAdminMissionDefs, useGameSettings, useGlobalReset, useServerOwner, useWeeklyEvent } from '@/data/live';
+import { isApiError } from '@/data/errors';
 import { settingsPatch, type SettingsForm } from './gameForms';
+import { ResetPanel } from './ResetPanel';
+import { ChestPrizes } from './ChestPrizes';
 import s from './AdminPage.module.css';
+
+/** Shown only when the database says this account is the server owner. */
+function OwnerReset() {
+  const owner = useServerOwner();
+  const reset = useGlobalReset();
+  if (!owner.data?.owner) return null;
+  const err = reset.error;
+  const error = err ? (isApiError(err) && err.code === 'forbidden' ? 'Só o dono do servidor pode resetar.' : 'O reset não rodou. Nada foi apagado.') : null;
+  const result = reset.data ? `Reset feito: ${reset.data.players} jogadores voltaram do zero.` : null;
+  return <ResetPanel busy={reset.isPending} onReset={(phrase) => reset.mutate(phrase)} lastReset={owner.data.last_reset} result={result} error={error} />;
+}
 
 const num = (v: unknown, fallback = '') => (typeof v === 'number' ? String(v) : fallback);
 
@@ -187,6 +201,8 @@ export function GameTab() {
       <RulesForm key={JSON.stringify([v.pull_cost, v.daily_reward, v.recycle_base, v.game_daily_limits, v.slots_bets])} settings={v} />
       <EventForm pinned={typeof v.event_card === 'string' ? v.event_card : null} />
       <MissionsForm pinned={Array.isArray(v.missions) ? (v.missions as string[]) : null} />
+      {isLive && <ChestPrizes />}
+      <OwnerReset />
     </>
   );
 }

@@ -155,9 +155,9 @@ export function LoginPage({ deps, onAdmin }: { deps: LoginDeps; onAdmin?: () => 
           </span>
         </div>
         <div className={s.fan}>
-          <CardView entry={FAN.left} size="m" className={s.fanLeft} />
-          <CardView entry={FAN.mid} size="m" className={s.fanMid} />
-          <CardView entry={FAN.right} size="m" className={s.fanRight} />
+          <CardView entry={FAN.left} size="m" zoom={false} className={s.fanLeft} />
+          <CardView entry={FAN.mid} size="m" zoom={false} className={s.fanMid} />
+          <CardView entry={FAN.right} size="m" zoom={false} className={s.fanRight} />
         </div>
         <p className={s.pitch}>As piadas da turma viraram figurinhas. Quanto mais rara, mais difícil de tirar.</p>
       </section>

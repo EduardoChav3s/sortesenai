@@ -58,6 +58,11 @@ export interface ItemForm {
   kind: 'minutes' | 'pulls';
   duration: string;
   active: boolean;
+  /** Picture: a pasted https link, or the public link of a file sent to the shop bucket (then image_path names it). */
+  image_url?: string;
+  image_path?: string | null;
+  /** What the potion amplifies: luck, XP or coins. */
+  attribute?: 'luck' | 'xp' | 'money';
 }
 export interface ItemPayload {
   id?: string;
@@ -68,6 +73,9 @@ export interface ItemPayload {
   duration_minutes: number | null;
   duration_pulls: number | null;
   active: boolean;
+  image_url: string | null;
+  image_path: string | null;
+  attribute: 'luck' | 'xp' | 'money';
 }
 
 export function itemPayload(f: ItemForm): { ok: true; payload: ItemPayload } | { ok: false; error: string } {
@@ -80,6 +88,8 @@ export function itemPayload(f: ItemForm): { ok: true; payload: ItemPayload } | {
   if (!Number.isFinite(mult) || mult <= 1) return { ok: false, error: 'A sorte precisa ser maior que 1x.' };
   const dur = positive(f.duration);
   if (dur === null) return { ok: false, error: 'Duração: use um número maior que zero.' };
+  const image = (f.image_url ?? '').trim();
+  if (image && !/^https:\/\/\S+$/.test(image)) return { ok: false, error: 'O link da imagem precisa começar com https://' };
   return {
     ok: true,
     payload: {
@@ -91,6 +101,9 @@ export function itemPayload(f: ItemForm): { ok: true; payload: ItemPayload } | {
       duration_minutes: f.kind === 'minutes' ? dur : null,
       duration_pulls: f.kind === 'pulls' ? dur : null,
       active: f.active,
+      image_url: image || null,
+      image_path: image ? f.image_path ?? null : null,
+      attribute: f.attribute ?? 'luck',
     },
   };
 }

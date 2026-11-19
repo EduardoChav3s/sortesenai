@@ -1,8 +1,10 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import { Bell } from './Bell';
+import { ChestDialog } from './Chest';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { formatCoins, formatLuck } from '@/lib/format';
 import { ME, WALLET } from '@/design/sample';
-import { isLive, useChallenges, useClaimDaily, useDailyStatus, playerChip, useFriends, useLevel, useTrades, useLuck, useMyProfile, useRole, useWallet } from '@/data/live';
+import { isLive, useChallenges, useDailyStatus, playerChip, useFriends, useLevel, useTrades, useLuck, useMyProfile, useRole, useWallet } from '@/data/live';
 import { Avatar } from '@/ui/Avatar';
 import { LiveNotice } from '@/features/roll/Extras';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,6 +25,7 @@ import {
   IconShield,
   IconSparkle,
   IconFriends,
+  IconChat,
   IconTrophy,
 } from '@/ui/icons';
 import s from './Shell.module.css';
@@ -47,6 +50,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Turma',
     items: [
+      { to: '/chat', label: 'Chat', icon: IconChat },
       { to: '/amigos', label: 'Amigos', icon: IconFriends },
       { to: '/ranking', label: 'Ranking', icon: IconTrophy },
       { to: '/ideia', label: 'Dar ideia', icon: IconBulb },
@@ -71,6 +75,7 @@ const SECTION: Record<string, Sec> = {
   "/ideia": sec("suggest", "dark"),
   "/artefatos": sec("artifacts", "light"),
   "/amigos": sec("friends", "dark"),
+  "/chat": sec("friends", "dark"),
   "/perfil": sec("profile", "dark"),
   "/admin": NEUTRAL,
   "/mais": NEUTRAL,
@@ -99,6 +104,7 @@ const TITLES: Record<string, string> = {
   '/ideia': 'Dar ideia',
   '/artefatos': 'Artefatos',
   '/amigos': 'Amigos',
+  '/chat': 'Chat',
   '/perfil': 'Perfil',
   '/admin': 'Admin',
   '/mais': 'Mais',
@@ -116,29 +122,32 @@ function Brand() {
   );
 }
 
-/** Once a day: gives the daily coins, then waits until tomorrow. */
+/** Once a day: opens the chest (one prize drawn by the database), then waits until tomorrow. */
 function DailyButton() {
   const status = useDailyStatus();
-  const claim = useClaimDaily();
   const [demoDone, setDemoDone] = useState(false);
-  const claimed = isLive ? status.data?.claimed_today === true || claim.isSuccess : demoDone;
-  const label = claim.isSuccess && claim.data ? 'Bônus pego!' : claimed ? 'Volte amanhã' : claim.isError ? 'Tente de novo' : 'Bônus diário';
+  const [open, setOpen] = useState(false);
+  const claimed = isLive ? status.data?.claimed_today === true : demoDone;
+  const label = claimed ? 'Volte amanhã' : 'Baú do dia';
   function take() {
     if (!isLive) return setDemoDone(true);
-    claim.mutate();
+    setOpen(true);
   }
   return (
-    <button
-      type="button"
-      className={`btn btn-secondary ${s.daily}`}
-      onClick={take}
-      disabled={claimed || claim.isPending || (isLive && status.isLoading)}
-      title={claimed ? 'Você já pegou o bônus de hoje' : 'Pegar as moedas do dia'}
-      aria-live="polite"
-    >
-      <IconGift size={18} />
-      <span>{label}</span>
-    </button>
+    <>
+      <button
+        type="button"
+        className={`btn btn-secondary ${s.daily}`}
+        onClick={take}
+        disabled={isLive && status.isLoading}
+        title={claimed ? 'Você já abriu o baú de hoje' : 'Abrir o baú do dia'}
+        data-ready={(!claimed && isLive) || undefined}
+      >
+        <IconGift size={18} />
+        <span>{label}</span>
+      </button>
+      {open && <ChestDialog onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -252,6 +261,7 @@ export function Shell() {
               {!isLive && <small>{WALLET.luckLeft}</small>}
             </span>
             <DailyButton />
+            <Bell />
           </div>
         </header>
         <main className={s.content}>

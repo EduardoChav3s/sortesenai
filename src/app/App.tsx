@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthGate } from '@/auth/AuthGate';
@@ -31,7 +31,10 @@ import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage';
 import { FriendsPage } from '@/features/friends/FriendsPage';
 import { PlayerPage } from '@/features/player/PlayerPage';
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000 } } });
+// The chat page loads on its own, only when opened.
+const ChatPage = lazy(() => import('@/features/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
+
+const queryClient =new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000 } } });
 
 export function App() {
   if (import.meta.env.DEV && window.location.pathname === '/_login')
@@ -65,6 +68,7 @@ export function App() {
           <Route path="*" element={<NotFoundPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="mais" element={<MorePage />} />
+          <Route path="chat" element={<Suspense fallback={<p className="page-sub">Abrindo o chat…</p>}><ChatPage /></Suspense>} />
         </Route>
       </Routes>
     </BrowserRouter>

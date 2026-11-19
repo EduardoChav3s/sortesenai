@@ -66,7 +66,13 @@ select t.err('select public.pull()', 'insufficient_coins', 'sem moedas nao rolet
 select t.ok((select coins from public.profiles) = 5, 'saldo intacto depois do erro');
 
 -- ------------------------------------------------------------ daily reward
-select t.ok((public.claim_daily()->>'coins_after')::int = 205, 'bonus diario da 200');
+reset role;
+update public.chest_prizes set active = false where true;
+set role authenticated;
+select t.ok((public.claim_daily()->>'coins_after')::int = 205, 'bau sem premios ligados: o bonus volta a ser 200 moedas');
+reset role;
+update public.chest_prizes set active = true where true;
+set role authenticated;
 select t.err('select public.claim_daily()', 'already_claimed', 'bonus so uma vez por dia');
 
 -- ------------------------------------------------------------ shop and luck
@@ -477,6 +483,590 @@ reset role;
 select t.as_user(:bia, 'bia@turma.test');
 set role authenticated;
 select t.err('select public.admin_list_players()', 'forbidden', 'quem perdeu o admin sai do painel');
+reset role;
+
+-- ------------------------------------------------------------ admin screen live: change notes for admins
+reset role;
+insert into public.admin_events (kind, created_at) values ('old', now() - interval '2 hours');
+select count(*) as pull_events_before from public.admin_events where kind = 'profiles' \gset
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_upsert_card(jsonb_build_object('title', 'Ao vivo', 'joke', '[exemplo] aparece na hora', 'odds_n', 40));
+select public.pull();
+select t.ok((select count(*) from public.admin_events where kind = 'cards' and actor = auth.uid()) >= 1, 'mudar carta avisa os admins e diz quem mudou');
+reset role;
+select t.ok((select count(*) from public.admin_events where kind = 'profiles') = :pull_events_before, 'roletar nao gera aviso de admin');
+select t.ok(not exists (select 1 from public.admin_events where kind = 'old'), 'avisos com mais de uma hora sao apagados');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((select count(*) from public.admin_events) = 0, 'jogador comum nao le os avisos de admin');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_set_role(:bia, 'admin');
+reset role;
+select t.ok(exists (select 1 from public.admin_events where kind = 'profiles'), 'mudar cargo avisa os admins');
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_set_role(:bia, 'player');
+reset role;
+
+-- ------------------------------------------------------------ the reel shows every active card in full
+reset role;
+update public.cards set active = false where title = 'Ao vivo';
+select count(*) as active_cards from public.cards where active \gset
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(jsonb_array_length(public.get_reel_cards()) = :active_cards, 'roleta recebe todas as cartas ativas');
+select t.ok((select bool_and(c ? 'joke' and c ? 'title') from jsonb_array_elements(public.get_reel_cards()) c), 'na roleta as cartas vem completas, mesmo sem ter');
+select t.ok(not exists (select 1 from jsonb_array_elements(public.get_reel_cards()) c where c->>'title' = 'Ao vivo'), 'carta desativada nao entra na roleta');
+select t.ok(not exists (select 1 from jsonb_array_elements(public.get_collection()) e where not (e->>'owned')::boolean and e->'card' ? 'joke'), 'o album continua escondendo as cartas que faltam');
+reset role;
+set role anon;
+do $$
+begin
+  perform public.get_reel_cards();
+  raise exception 'FAIL: quem nao entrou leu as cartas da roleta';
+exception when insufficient_privilege then
+  raise notice 'ok  quem nao entrou nao le as cartas da roleta';
+end $$;
+reset role;
+
+-- ------------------------------------------------------------ card photos: who may read which file
+-- The storage rule runs as the player, and players cannot read the cards table (card text stays secret).
+reset role;
+update public.cards set image_path = 'fotos/' || id || '.webp';
+insert into storage.objects (bucket_id, name) select 'cards', image_path from public.cards;
+select count(*) as fotos from storage.objects where bucket_id = 'cards' \gset
+delete from public.feed_events where card_id = (select id from public.cards where title = 'Ao vivo');
+select c.image_path as foto_ativa from public.cards c
+  where c.active and not exists (select 1 from public.inventory i where i.card_id = c.id and i.user_id = :bia and i.quantity > 0)
+  limit 1 \gset
+select image_path as foto_desligada, id as carta_desligada from public.cards where title = 'Ao vivo' \gset
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((select count(*) from storage.objects where bucket_id = 'cards' and name = :'foto_ativa') = 1, 'jogador ve a foto de carta ativa que ainda nao tem (a roleta mostra)');
+select t.ok((select count(*) from storage.objects where bucket_id = 'cards' and name = :'foto_desligada') = 0, 'jogador nao ve a foto de carta desligada que nao tem');
+reset role;
+insert into public.feed_events (user_id, card_id, odds_n_at_pull, luck) values (:duda, :'carta_desligada', 40, 1);
+set role authenticated;
+select t.ok((select count(*) from storage.objects where bucket_id = 'cards' and name = :'foto_desligada') = 1, 'jogador ve a foto de carta desligada que saiu no mural');
+reset role;
+delete from public.feed_events where card_id = :'carta_desligada';
+insert into public.inventory (user_id, card_id, quantity) values (:bia, :'carta_desligada', 1);
+set role authenticated;
+select t.ok((select count(*) from storage.objects where bucket_id = 'cards' and name = :'foto_desligada') = 1, 'jogador ve a foto de carta desligada que tem');
+reset role;
+select t.as_user(:ana, 'ana@turma.test');
+set role authenticated;
+select t.ok((select count(*) from storage.objects where bucket_id = 'cards') = 0, 'conta suspensa nao ve fotos de cartas');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok((select count(*) from storage.objects where bucket_id = 'cards') = :fotos, 'admin ve todas as fotos de cartas');
+reset role;
+set role anon;
+do $$
+begin
+  if (select count(*) from storage.objects where bucket_id = 'cards') <> 0 then raise exception 'FAIL: quem nao entrou viu fotos de cartas'; end if;
+  raise notice 'ok  quem nao entrou nao ve fotos de cartas';
+end $$;
+reset role;
+
+-- ------------------------------------------------------------ the draw: one roll, exact chances, ties shared fairly
+-- Reported bug: two commonest cards with the same chance, one came out almost every time.
+reset role;
+begin;
+update public.cards set active = false where true;
+insert into public.cards (title, joke, odds_n) values ('Igual A', '[exemplo] a', 50), ('Igual B', '[exemplo] b', 50), ('Rara', '[exemplo] r', 1000);
+update public.profiles set coins = 100000 where id = :bia;
+select t.ok(abs((select sum(chance) from app.roll_table(1, false)) - 1) < 1e-9, 'as chances de uma roletada somam 100%');
+select t.ok((select count(distinct chance) from app.roll_table(1, false) r join public.cards c on c.id = r.card_id where c.title like 'Igual%') = 1,
+            'cartas com a mesma raridade tem exatamente a mesma chance');
+select t.ok((select chance from app.roll_table(1, false) r join public.cards c on c.id = r.card_id where c.title = 'Rara') = 1.0 / 1000, 'carta 1 em 1000 sai 1 vez em 1000');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+do $$ begin for i in 1 .. 400 loop perform public.pull(); end loop; end $$;
+reset role;
+select t.ok((select count(*) from public.pulls p join public.cards c on c.id = p.card_id where p.user_id = :bia and c.title = 'Igual A') between 140 and 260
+        and (select count(*) from public.pulls p join public.cards c on c.id = p.card_id where p.user_id = :bia and c.title = 'Igual B') between 140 and 260,
+            '400 roletadas: as duas cartas iguais saem metade cada');
+-- thousands of draws against the configured chances (seed deck back), with normal luck and with luck 10x
+rollback;
+create table t.draws (luck numeric, card_id uuid);
+insert into t.draws select 1, (app.draw_card(1, false)).id from generate_series(1, 20000);
+insert into t.draws select 10, (app.draw_card(10, false)).id from generate_series(1, 20000);
+select t.ok(not exists (
+  select 1 from (values (1::numeric), (10::numeric)) l(luck)
+  cross join lateral app.roll_table(l.luck, false) r
+  where abs((select count(*) from t.draws d where d.luck = l.luck and d.card_id = r.card_id) - 20000 * r.chance)
+        > 5 * sqrt(20000 * r.chance * (1 - r.chance)) + 3), '20 mil roletadas por sorte: cada carta sai na frequencia configurada (sorte 1x e 10x)');
+select t.ok((select count(*) from t.draws d join public.cards c on c.id = d.card_id where d.luck = 10 and c.odds_n >= 1000)
+          > (select count(*) from t.draws d join public.cards c on c.id = d.card_id where d.luck = 1 and c.odds_n >= 1000),
+            'sorte maior faz cartas raras sairem mais');
+select t.ok((select sum(r.chance) from app.roll_table(1000000, false) r join public.cards c on c.id = r.card_id where c.odds_n >= 150000) > 0.99,
+            'com sorte maxima, a sobra vai para as cartas mais raras');
+drop table t.draws;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err('select app.draw_card(1, false)', 'permission denied', 'o sorteio so roda no servidor, jogador nao chama direto');
+reset role;
+
+-- ------------------------------------------------------------ shop items: pictures
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select (public.admin_upsert_item(jsonb_build_object('name', 'Poção com foto', 'price', 100, 'multiplier', 2, 'duration_minutes', 5,
+  'image_url', 'https://exemplo.test/pocao.png')))->>'id' as item_foto \gset
+select t.ok((select image_url from public.items where id = :'item_foto') = 'https://exemplo.test/pocao.png', 'admin poe imagem por link no item');
+select t.ok((select image_path from public.items where id = :'item_foto') is null, 'imagem por link nao tem arquivo guardado');
+select public.admin_upsert_item(jsonb_build_object('id', :'item_foto', 'name', 'Poção com foto', 'price', 100, 'multiplier', 2, 'duration_minutes', 5,
+  'image_url', 'https://projeto.test/storage/v1/object/public/shop/abc.webp', 'image_path', 'abc.webp'));
+select t.ok((select image_path from public.items where id = :'item_foto') = 'abc.webp', 'admin troca a imagem por um arquivo enviado');
+select t.err($$select public.admin_upsert_item(jsonb_build_object('name', 'Ruim', 'price', 1, 'multiplier', 2, 'duration_minutes', 5, 'image_url', 'javascript:alert(1)'))$$,
+             'invalid', 'link de imagem precisa ser https');
+select public.admin_upsert_item(jsonb_build_object('id', :'item_foto', 'name', 'Poção com foto', 'price', 100, 'multiplier', 2, 'duration_minutes', 5));
+select t.ok((select image_url is null and image_path is null from public.items where id = :'item_foto'), 'admin remove a imagem do item');
+select public.admin_upsert_item(jsonb_build_object('id', :'item_foto', 'name', 'Poção com foto', 'price', 100, 'multiplier', 2, 'duration_minutes', 5,
+  'image_url', 'https://exemplo.test/pocao.png'));
+reset role;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((select image_url from public.items where id = :'item_foto') = 'https://exemplo.test/pocao.png', 'jogador ve a imagem do item na loja');
+reset role;
+select t.ok((select public from storage.buckets where id = 'shop'), 'pasta de imagens da loja existe e e publica');
+select t.ok(exists (select 1 from pg_policies where schemaname = 'storage' and policyname = 'shop_admin_write'), 'so admin envia imagens da loja');
+
+-- ------------------------------------------------------------ global reset: only the server owner
+reset role;
+-- the owner is matched by the fingerprint of their e-mail; here it points at duda
+update app.server_owner set email_sha256 = encode(extensions.digest('duda@turma.test', 'sha256'), 'hex') where true;
+select count(*) as contas from public.profiles \gset
+select count(*) as cartas from public.cards \gset
+select count(*) as amizades from public.friendships \gset
+select value::text as regras from public.settings where id \gset
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_set_role(:bia, 'admin');
+reset role;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(not (public.server_owner_status()->>'owner')::boolean, 'outro admin nao ve o reset global');
+select t.err($$select public.admin_global_reset('RESETAR SERVIDOR')$$, 'forbidden', 'outro admin nao reseta o servidor');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_set_role(:bia, 'player');
+select t.ok((public.server_owner_status()->>'owner')::boolean, 'dono do servidor ve o reset global');
+select t.err($$select public.admin_global_reset('resetar')$$, 'invalid', 'reset exige a frase RESETAR SERVIDOR');
+select t.ok((select count(*) from public.inventory) > 0 and (select sum(coins) from public.profiles) > 0, 'antes do reset ha cartas e moedas');
+select t.ok((public.admin_global_reset('RESETAR SERVIDOR')->>'players')::int = :contas, 'reset atinge todos os jogadores');
+reset role;
+select t.ok((select count(*) from public.inventory) = 0, 'reset tira todas as cartas de todos');
+select t.ok((select count(*) from public.profiles where coins <> 0) = 0, 'reset zera as moedas de todos');
+select t.ok((select count(*) from public.pulls) + (select count(*) from public.coin_transactions) + (select count(*) from public.user_items)
+          + (select count(*) from public.active_effects) + (select count(*) from public.user_titles) + (select count(*) from public.daily_claims)
+          + (select count(*) from public.game_sessions) + (select count(*) from public.daily_game_earnings) + (select count(*) from public.feed_events)
+          + (select count(*) from public.card_gifts) + (select count(*) from public.trades) + (select count(*) from public.challenges)
+          + (select count(*) from public.mission_claims) = 0, 'reset limpa roletadas, extrato, pocoes, titulos, bonus, jogos, mural, presentes, trocas, duelos e missoes');
+select t.ok((select count(*) from public.profiles where showcase <> '{}' or title_id is not null or avatar_card_id is not null or level_claimed <> 1 or streak <> 1) = 0,
+            'reset limpa vitrine, titulo em uso e nivel');
+select t.ok((select count(*) from public.profiles) = :contas, 'reset nao apaga nenhuma conta');
+select t.ok((select role from public.profiles where id = :duda) = 'admin' and (select banned from public.profiles where id = :ana), 'reset mantem cargos e suspensoes');
+select t.ok((select count(*) from public.cards) = :cartas and (select count(*) from public.friendships) = :amizades
+        and (select value::text from public.settings where id) = :'regras', 'reset mantem cartas, amizades e regras do jogo');
+select t.ok(exists (select 1 from public.admin_history where kind = 'reset_global' and actor = :duda), 'reset fica no historico de admin');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((select count(*) from public.admin_history) = 0, 'jogador comum nao le o historico de admin');
+reset role;
+set role anon;
+do $$
+begin
+  perform public.admin_global_reset('RESETAR SERVIDOR');
+  raise exception 'FAIL: quem nao entrou chamou o reset';
+exception when insufficient_privilege then
+  raise notice 'ok  quem nao entrou nao chama o reset';
+end $$;
+reset role;
+
+-- ------------------------------------------------------------ live chat: messages, pictures, coins and card offers
+reset role;
+update public.profiles set coins = 1000 where id in (:duda, :bia);
+select id as carta_x from public.cards where active order by odds_n limit 1 \gset
+select id as carta_y from public.cards where active order by odds_n offset 1 limit 1 \gset
+select id as carta_z from public.cards where active order by odds_n offset 2 limit 1 \gset
+insert into public.inventory (user_id, card_id, quantity) values (:bia, :'carta_x', 2), (:bia, :'carta_z', 2), (:duda, :'carta_y', 2), (:bia, :'carta_y', 1)
+  on conflict (user_id, card_id) do update set quantity = excluded.quantity;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select (public.chat_send('oi turma', null)->>'id') as msg_bia \gset
+select t.ok(exists (select 1 from jsonb_array_elements(public.get_chat(null)) m where m->>'body' = 'oi turma' and m->'author'->>'nickname' = 'bia'), 'mensagem aparece no chat com quem mandou');
+select t.err($$select public.chat_send('   ', null)$$, 'invalid', 'mensagem vazia recusada');
+select t.err(format('select public.chat_send(%L, null)', repeat('a', 301)), 'invalid', 'mensagem com mais de 300 letras recusada');
+select t.err($$select public.chat_send(null, 'outra-pessoa/foto.webp')$$, 'invalid', 'imagem so da propria pasta');
+select t.ok(public.chat_send('olha', '00000000-0000-0000-0000-0000000000b1/foto.webp')->>'kind' = 'image', 'jogador manda imagem com legenda');
+do $$
+begin
+  for i in 1 .. 6 loop perform public.chat_send('spam ' || i, null); end loop;
+  perform public.chat_send('spam demais', null);
+  raise exception 'FAIL: 9 mensagens em 10 segundos passaram';
+exception when others then
+  if sqlerrm <> 'slow_down' then raise; end if;
+  raise notice 'ok  muitas mensagens seguidas: pede para ir com calma';
+end $$;
+reset role;
+delete from public.chat_messages where user_id = :bia and created_at > now() - interval '1 minute' and body like 'spam%';
+update public.chat_messages set created_at = now() - interval '1 minute' where user_id = :bia;
+-- coins
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(public.chat_send_coins(:duda, 100, 'valeu')->>'kind' = 'coins', 'jogador envia moedas pelo chat');
+reset role;
+select t.ok((select coins from public.profiles where id = :bia) = 900 and (select coins from public.profiles where id = :duda) = 1100, 'moedas saem de um e entram no outro');
+select t.ok(exists (select 1 from public.coin_transactions where user_id = :bia and amount = -100) and exists (select 1 from public.coin_transactions where user_id = :duda and amount = 100), 'envio de moedas fica no extrato dos dois');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err(format('select public.chat_send_coins(%L, 10, null)', :bia), 'invalid', 'nao envia moedas para si');
+select t.err(format('select public.chat_send_coins(%L, 0, null)', :duda), 'invalid', 'quantia precisa ser maior que zero');
+select t.err(format('select public.chat_send_coins(%L, 999999, null)', :duda), 'insufficient_coins', 'nao envia mais do que tem');
+select t.err(format('select public.chat_send_coins(%L, 10, null)', :ana), 'invalid', 'nao envia para conta suspensa');
+-- offers: buy at the price
+select t.err(format('select public.chat_offer(%L, 200, null)', :'carta_y'), 'invalid', 'so oferece carta repetida');
+select (public.chat_offer(:'carta_x', 200, 'vendo barato')->>'id') as oferta \gset
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select t.ok((select (m->>'available')::boolean and m->'card' ? 'title' from jsonb_array_elements(public.get_chat(null)) m where (m->>'id')::bigint = :oferta), 'oferta mostra a carta inteira e que esta disponivel');
+select t.ok(public.chat_buy(:oferta)->>'status' = 'done', 'outro jogador compra a carta pelo preco');
+select t.err(format('select public.chat_buy(%s)', :oferta), 'invalid', 'oferta vendida nao vende de novo');
+reset role;
+select t.ok((select quantity from public.inventory where user_id = :duda and card_id = :'carta_x') = 1
+        and (select quantity from public.inventory where user_id = :bia and card_id = :'carta_x') = 1, 'carta passa de quem vendeu para quem comprou');
+select t.ok((select coins from public.profiles where id = :duda) = 900 and (select coins from public.profiles where id = :bia) = 1100, 'preco passa de quem comprou para quem vendeu');
+-- offers: proposals (a card and/or coins), the seller accepts one
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select (public.chat_offer(:'carta_z', null, 'aceito propostas')->>'id') as oferta2 \gset
+select t.err(format('select public.chat_buy(%s)', :oferta2), 'invalid', 'oferta sem preco nao tem compra direta');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select (public.chat_bid(:oferta2, :'carta_y', 50)->>'id') as proposta \gset
+select t.err(format('select public.chat_accept_bid(%s)', :proposta), 'forbidden', 'so quem ofereceu aceita a proposta');
+reset role;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err(format('select public.chat_bid(%s, null, 10)', :oferta2), 'invalid', 'nao faz proposta na propria oferta');
+select t.ok(public.chat_accept_bid(:proposta)->>'status' = 'done', 'quem ofereceu aceita a proposta');
+reset role;
+select t.ok((select quantity from public.inventory where user_id = :duda and card_id = :'carta_z') = 1
+        and (select quantity from public.inventory where user_id = :bia and card_id = :'carta_y') = 2
+        and (select coins from public.profiles where id = :bia) = 1150, 'troca aceita: cartas trocam de dono e as moedas da proposta passam');
+-- cancel, moderation, who may read
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select (public.chat_offer(:'carta_y', 30, null)->>'id') as oferta3 \gset
+select t.ok(public.chat_cancel_offer(:oferta3)->>'status' = 'cancelled', 'quem ofereceu cancela a oferta');
+select t.err(format('select public.admin_delete_chat_message(%s)', :msg_bia), 'forbidden', 'jogador comum nao apaga mensagens');
+select t.ok((select count(*) from public.chat_messages) > 0, 'jogador le as mensagens (para o chat ao vivo)');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_delete_chat_message(:msg_bia);
+select t.ok(not exists (select 1 from jsonb_array_elements(public.get_chat(null)) m where (m->>'id')::bigint = :msg_bia), 'admin apaga mensagem do chat');
+reset role;
+select t.as_user(:ana, 'ana@turma.test');
+set role authenticated;
+select t.err($$select public.chat_send('oi', null)$$, 'banned', 'conta suspensa nao manda mensagem');
+reset role;
+set role anon;
+do $$
+begin
+  perform public.get_chat(null);
+  raise exception 'FAIL: quem nao entrou leu o chat';
+exception when insufficient_privilege then
+  raise notice 'ok  quem nao entrou nao le o chat';
+end $$;
+reset role;
+select t.ok((select not public from storage.buckets where id = 'chat'), 'pasta de imagens do chat existe e e privada');
+
+-- ------------------------------------------------------------ luck: effects add up, never multiply
+reset role;
+update public.profiles set streak = 1, last_pull_at = null, coins = 1000 where id = :bia;
+create function t.luck_with(p_mults numeric[]) returns numeric language plpgsql as $$
+declare v numeric;
+begin
+  delete from public.active_effects where user_id = '00000000-0000-0000-0000-0000000000b1';
+  insert into public.active_effects (user_id, item_id, multiplier, expires_at)
+  select '00000000-0000-0000-0000-0000000000b1', (select id from public.items limit 1), m, now() + interval '10 minutes' from unnest(p_mults) m;
+  select effective into v from app.luck_state('00000000-0000-0000-0000-0000000000b1');
+  return v;
+end $$;
+select t.ok(t.luck_with(array[5]) = 5, '1 pocao de 5x = 5x');
+select t.ok(t.luck_with(array[5, 5]) = 9, '2 pocoes de 5x sem artefato = 9x: 1 x (1+4+4), nunca 25x');
+select t.ok(t.luck_with(array[5, 5, 5]) = 13, '3 pocoes de 5x sem artefato = 13x');
+select t.ok(t.luck_with(array[5, 5, 5, 5]) = 17, '4 pocoes de 5x sem artefato = 17x');
+select t.ok(t.luck_with(array[5, 10]) = 14, '1 pocao de 5x + 1 de 10x sem artefato = 14x');
+select t.ok(t.luck_with(array[10, 10, 5]) = 23, '2 pocoes de 10x + 1 de 5x sem artefato = 23x');
+select t.ok(t.luck_with(array[]::numeric[]) = 1, 'sem pocao a sorte e 1x');
+-- one effect ends: only its bonus goes
+select t.luck_with(array[5, 10]);
+update public.active_effects set expires_at = now() - interval '1 second' where user_id = :bia and multiplier = 10;
+select t.ok((select effective from app.luck_state(:bia)) = 5, 'quando uma pocao acaba, so o bonus dela sai');
+insert into public.active_effects (user_id, item_id, multiplier, pulls_left) values (:bia, (select id from public.items limit 1), 5, 0);
+select t.ok((select effective from app.luck_state(:bia)) = 5, 'pocao por roletadas sem roletadas restantes nao conta');
+-- what the screen shows is what the roll uses, and reading it again never adds anything
+select t.luck_with(array[5, 5]);
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((public.get_luck()->>'effective')::numeric = 9 and (public.get_luck()->>'effective')::numeric = 9, 'a sorte mostrada e a mesma ao ler de novo (atualizar a pagina)');
+select t.ok((public.pull()->>'luck_used')::numeric = 9, 'a roletada usa a mesma sorte mostrada na tela');
+reset role;
+-- the pull streak adds its bonus too
+update public.profiles set streak = 1.5, last_pull_at = now() where id = :bia;
+select t.luck_with(array[5]);
+select t.ok((select effective from app.luck_state(:bia)) = 5.5, 'bonus de sequencia soma (5x + 0,5x = 5,5x), nao multiplica');
+delete from public.active_effects where user_id = :bia;
+drop function t.luck_with(numeric[]);
+
+-- ------------------------------------------------------------ artifacts: fragments, forge, bonuses
+reset role;
+update public.profiles set coins = 5000, streak = 1, last_pull_at = null where id in (:duda, :bia);
+delete from public.active_effects where user_id = :bia;
+select id as frag_comum from public.fragment_types where name = 'Comum' \gset
+select id as comum_card from public.cards where active and odds_n < 100 order by odds_n limit 1 \gset
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_set_fragment_rule('comum', :'frag_comum', 3);
+select (public.admin_upsert_artifact(jsonb_build_object('name', 'Trevo de teste', 'description', 'sorte', 'rarity', 'raro', 'luck_mult', 5,
+  'recipe', jsonb_build_array(jsonb_build_object('fragment_type', :'frag_comum', 'amount', 6))))->>'id') as art_sorte \gset
+select (public.admin_upsert_artifact(jsonb_build_object('name', 'Ampulheta de teste', 'rarity', 'epico', 'xp_mult', 2, 'money_mult', 3,
+  'recipe', jsonb_build_array(jsonb_build_object('fragment_type', :'frag_comum', 'amount', 3))))->>'id') as art_xp \gset
+select t.err($$select public.admin_upsert_artifact('{"name":"x"}')$$, 'invalid', 'artefato precisa de receita');
+reset role;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err($$select public.admin_upsert_artifact('{"name":"x","recipe":[]}')$$, 'forbidden', 'jogador comum nao cria artefato');
+reset role;
+-- fragments: the player turns spare copies into fragments when they want
+insert into public.inventory (user_id, card_id, quantity) values (:bia, :'comum_card', 3) on conflict (user_id, card_id) do update set quantity = 3;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((public.convert_duplicates(:'comum_card', 1)->>'gained')::int = 3, 'segunda copia vira fragmentos, na quantidade que o admin configurou');
+select t.ok((public.convert_duplicates(:'comum_card', 1)->>'gained')::int = 3, 'terceira copia vira fragmentos de novo');
+select t.err(format('select public.convert_duplicates(%L, 1)', :'comum_card'), 'invalid', 'a ultima copia nunca vira fragmento');
+select t.ok((select quantity from public.inventory where user_id = auth.uid() and card_id = :'comum_card') = 1, 'a primeira copia continua na colecao');
+select t.ok(exists (select 1 from jsonb_array_elements(public.get_fragments()) f where f->>'name' = 'Comum' and (f->>'quantity')::int = 6), 'fragmentos ficam guardados');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_set_card_fragments(:'comum_card', false);
+reset role;
+update public.inventory set quantity = 2 where user_id = :bia and card_id = :'comum_card';
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err(format('select public.convert_duplicates(%L, 1)', :'comum_card'), 'invalid', 'carta que o admin bloqueou nao vira fragmento');
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_set_card_fragments(:'comum_card', true);
+reset role;
+-- forge
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((select (a->>'can_craft')::boolean from jsonb_array_elements(public.get_forge()) a where a->>'name' = 'Trevo de teste'), 'forja mostra que da para fabricar');
+select t.ok(public.craft_artifact(:'art_sorte', '11111111-1111-1111-1111-111111111111') ? 'id', 'fabrica com materiais suficientes');
+select t.ok(public.craft_artifact(:'art_sorte', '11111111-1111-1111-1111-111111111111') ? 'id', 'o mesmo pedido de novo nao fabrica outra vez');
+select t.ok(jsonb_array_length(public.get_my_artifacts()->'items') = 1, 'so um artefato fabricado com o pedido repetido');
+select t.ok(not exists (select 1 from jsonb_array_elements(public.get_fragments()) f where (f->>'quantity')::int > 0), 'fragmentos descontados certinho');
+select t.err(format('select public.craft_artifact(%L, %L)', :'art_sorte', '22222222-2222-2222-2222-222222222222'), 'missing_materials', 'sem materiais nao fabrica');
+select t.ok(jsonb_array_length(public.get_my_artifacts()->'items') = 1 and jsonb_array_length(public.get_my_artifacts()->'items') = 1, 'artefato continua na colecao ao abrir de novo');
+reset role;
+-- bonuses: artifacts add up, potions amplify the artifacts' sum (1 + extras), each attribute apart
+create function t.luck_with(p_arts numeric[], p_pots numeric[], p_attr text default 'luck') returns numeric language plpgsql as $$
+declare b uuid := '00000000-0000-0000-0000-0000000000b1'; m numeric; a uuid;
+begin
+  delete from public.user_artifacts where user_id = b;
+  delete from public.active_effects where user_id = b;
+  update public.profiles set streak = 1, last_pull_at = null where id = b;
+  foreach m in array p_arts loop
+    insert into public.artifacts (name, rarity, luck_mult) values ('t ' || m, 'raro', m) returning id into a;
+    insert into public.user_artifacts (user_id, artifact_id, active) values (b, a, true);
+  end loop;
+  foreach m in array p_pots loop
+    insert into public.active_effects (user_id, item_id, multiplier, attribute, expires_at) values (b, (select id from public.items limit 1), m, p_attr, now() + interval '10 minutes');
+  end loop;
+  return (select effective from app.luck_state(b));
+end $$;
+select t.ok(t.luck_with(array[5, 5], array[]::numeric[]) = 10, 'dois artefatos de 5x = 10x');
+select t.ok(t.luck_with(array[5], array[2]) = 10, 'artefato de 5x com pocao de 2x = 10x');
+select t.ok(t.luck_with(array[5], array[3]) = 15, 'artefato de 5x com pocao de 3x = 15x');
+select t.ok(t.luck_with(array[5], array[2, 2]) = 15, 'artefato de 5x com duas pocoes de 2x = 15x');
+select t.ok(t.luck_with(array[5, 5], array[2]) = 20, 'dois artefatos de 5x com pocao de 2x = 20x');
+select t.ok(t.luck_with(array[5, 5], array[3]) = 30, 'dois artefatos de 5x com pocao de 3x = 30x');
+select t.ok(t.luck_with(array[]::numeric[], array[5]) = 5, 'sem artefato, pocao de 5x = 5x (base 1x)');
+select t.ok(t.luck_with(array[]::numeric[], array[5, 5]) = 9, 'sem artefato, duas pocoes de 5x = 9x (1 x (1+4+4))');
+select t.ok(t.luck_with(array[5], array[2], 'xp') = 5, 'pocao de XP nao mexe na sorte');
+select t.luck_with(array[5], array[2, 2]);
+update public.active_effects set expires_at = now() - interval '1 second' where user_id = :bia and ctid = (select ctid from public.active_effects where user_id = :bia limit 1);
+select t.ok((select effective from app.luck_state(:bia)) = 10, 'uma pocao expira e a outra continua (15x vira 10x)');
+update public.active_effects set expires_at = now() - interval '1 second' where user_id = :bia;
+select t.ok((select effective from app.luck_state(:bia)) = 5, 'sem pocoes o artefato volta para a base (5x)');
+update public.user_artifacts set active = false where user_id = :bia;
+select t.ok((select effective from app.luck_state(:bia)) = 1, 'artefato desativado nao da bonus');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((public.get_luck()->>'effective')::numeric = (public.get_luck()->>'effective')::numeric, 'ler a sorte de novo nao muda nada');
+reset role;
+drop function t.luck_with(numeric[], numeric[], text);
+-- slots
+delete from public.user_artifacts where user_id = :bia;
+insert into public.user_artifacts (user_id, artifact_id, active) select :bia, :'art_sorte', false from generate_series(1, 4);
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+do $$
+declare r record; n int := 0;
+begin
+  for r in select (x->>'user_artifact_id')::bigint as id from jsonb_array_elements(public.get_my_artifacts()->'items') x order by 1 loop
+    n := n + 1;
+    begin
+      perform public.set_artifact_active(r.id, true);
+      if n = 4 then raise exception 'FAIL: quarto artefato ativado com 3 espacos'; end if;
+    exception when others then
+      if n < 4 or sqlerrm <> 'invalid' then raise; end if;
+      raise notice 'ok  so 3 artefatos ativos ao mesmo tempo';
+    end;
+  end loop;
+end $$;
+reset role;
+-- XP and money multipliers count from now on, only on what is earned
+delete from public.user_artifacts where user_id = :bia;
+insert into public.user_artifacts (user_id, artifact_id, active) values (:bia, :'art_xp', true);
+select coins as antes from public.profiles where id = :bia \gset
+select app.move_coins(:bia, 100, 'bonus diario');
+select t.ok((select coins from public.profiles where id = :bia) = :antes + 300, 'artefato de moedas 3x: bonus diario de 100 vira 300');
+select app.move_coins(:bia, 100, 'chat:recebeu');
+select t.ok((select coins from public.profiles where id = :bia) = :antes + 400, 'moedas recebidas de outro jogador nao sao multiplicadas');
+select app.xp(:bia) as xp_antes \gset
+insert into public.pulls (user_id, card_id, odds_n_at_pull, luck_used) values (:bia, :'comum_card', 12, 1);
+select t.ok(app.xp(:bia) = :xp_antes + 20, 'artefato de XP 2x: roletada vale 20 XP em vez de 10');
+-- the global reset also clears fragments, artifacts and bonus XP
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.admin_global_reset('RESETAR SERVIDOR');
+reset role;
+select t.ok((select count(*) from public.user_fragments) + (select count(*) from public.user_artifacts) = 0
+        and (select count(*) from public.profiles where xp_bonus <> 0) = 0, 'reset global tambem limpa fragmentos, artefatos e XP extra');
+select t.ok((select count(*) from public.artifacts where name = 'Trevo de teste') = 1, 'reset mantem os artefatos que o admin criou');
+
+-- ------------------------------------------------------------ notifications: the bell
+reset role;
+update public.profiles set coins = 5000 where id in (:duda, :bia);
+delete from public.notifications where true;
+select id as nt_card from public.cards where active order by odds_n limit 1 \gset
+insert into public.inventory (user_id, card_id, quantity) values (:bia, :'nt_card', 3), (:duda, :'nt_card', 3)
+  on conflict (user_id, card_id) do update set quantity = 3;
+update public.chat_messages set created_at = now() - interval '1 minute' where true;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select public.chat_send_coins(:duda, 100, 'valeu');
+reset role;
+select t.ok(exists (select 1 from public.notifications where user_id = :duda and kind = 'coins' and body like '%bia%100 moedas%'), 'aviso: um jogador te mandou moedas');
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select (public.chat_offer(:'nt_card', null, null)->>'id') as nt_offer \gset
+reset role;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select (public.chat_bid(:nt_offer, null, 50)->>'id') as nt_bid \gset
+reset role;
+select t.ok(exists (select 1 from public.notifications where user_id = :duda and kind = 'bid'), 'aviso: chegou uma proposta na sua oferta');
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.chat_accept_bid(:nt_bid);
+reset role;
+select t.ok(exists (select 1 from public.notifications where user_id = :bia and kind = 'bid_accepted'), 'aviso: aceitaram sua proposta');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select (public.chat_offer(:'nt_card', 200, null)->>'id') as nt_sale \gset
+reset role;
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.chat_buy(:nt_sale);
+reset role;
+select t.ok(exists (select 1 from public.notifications where user_id = :bia and kind = 'sold' and body like '%duda%200 moedas%'), 'aviso: alguem comprou sua oferta');
+insert into public.card_gifts (from_user, to_user, card_id) values (:duda, :bia, :'nt_card');
+select t.ok(exists (select 1 from public.notifications where user_id = :bia and kind = 'gift'), 'aviso: alguem te deu uma carta');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok((public.get_notifications()->>'unread')::int >= 3, 'sininho conta os avisos nao lidos');
+select t.ok((select count(*) from public.notifications where user_id = :duda) = 0, 'ninguem le os avisos dos outros');
+select public.mark_notifications_read(null);
+select t.ok((public.get_notifications()->>'unread')::int = 0, 'marcar como lido zera o sininho');
+reset role;
+
+-- ------------------------------------------------------------ chat mentions
+reset role;
+delete from public.notifications where true;
+update public.chat_messages set created_at = now() - interval '1 minute' where true;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select public.chat_send('oi @duda, olha isso! @duda @ninguemaqui @bia', null);
+reset role;
+select t.ok((select count(*) from public.notifications where user_id = :duda and kind = 'mention' and body like '%bia%mencionou%') = 1, 'mencao avisa a pessoa (uma vez so)');
+select t.ok(not exists (select 1 from public.notifications where user_id = :bia), 'quem menciona a si mesmo nao recebe aviso');
+select t.as_user(:duda, 'duda@turma.test');
+set role authenticated;
+select public.chat_send('valeu @BIA', null);
+reset role;
+select t.ok(exists (select 1 from public.notifications where user_id = :bia and kind = 'mention'), 'mencao funciona com maiusculas ou minusculas');
+select t.ok(exists (select 1 from public.notifications where user_id = :bia and kind = 'mention' and link = '/chat'), 'aviso de mencao leva para o chat');
+
+-- ------------------------------------------------------------ daily chest
+reset role;
+select t.ok((select count(*) from public.chest_prizes where active) >= 3, 'o bau ja vem com premios');
+select t.ok(abs((select sum(chance) from app.chest_table()) - 1) < 1e-9, 'as chances do bau somam 100%');
+create table t.chest (prize uuid);
+insert into t.chest select (app.chest_draw()).id from generate_series(1, 20000);
+select t.ok(not exists (
+  select 1 from app.chest_table() c
+  where abs((select count(*) from t.chest x where x.prize = c.id) - 20000 * c.chance) > 5 * sqrt(20000 * c.chance * (1 - c.chance)) + 3),
+  '20 mil baus: cada premio sai na chance do peso');
+drop table t.chest;
+-- each kind of prize really arrives
+update public.chest_prizes set active = false where true;
+insert into public.chest_prizes (kind, amount, fragment_type, weight) values ('fragments', 7, (select id from public.fragment_types where name = 'Raro'), 1);
+delete from public.daily_claims where user_id = :bia;
+delete from public.user_fragments where user_id = :bia;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.ok(public.claim_daily()->'prize'->>'kind' = 'fragments', 'bau entrega o premio sorteado');
+select t.err('select public.claim_daily()', 'already_claimed', 'bau so abre uma vez por dia');
+reset role;
+select t.ok((select quantity from public.user_fragments where user_id = :bia) = 7, 'premio de fragmentos chega na conta');
+update public.chest_prizes set active = false where true;
+insert into public.chest_prizes (kind, amount, item_id, weight) values ('potion', 2, (select id from public.items order by price limit 1), 1);
+delete from public.daily_claims where user_id = :bia;
+delete from public.user_items where user_id = :bia;
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select public.claim_daily();
+reset role;
+select t.ok((select quantity from public.user_items where user_id = :bia) = 2, 'premio de pocao chega na mochila');
+update public.chest_prizes set active = false where true;
+insert into public.chest_prizes (kind, amount, weight) values ('coins', 300, 1);
+delete from public.daily_claims where user_id = :bia;
+select coins as bau_antes from public.profiles where id = :bia \gset
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select public.claim_daily();
+reset role;
+select t.ok((select coins from public.profiles where id = :bia) = :bau_antes + 300, 'premio de moedas chega no saldo');
+select t.ok(exists (select 1 from public.daily_claims where user_id = :bia and day = app.today()), 'abrir o bau conta como bonus do dia (XP e missoes)');
+select t.as_user(:bia, 'bia@turma.test');
+set role authenticated;
+select t.err($$select public.admin_upsert_chest_prize('{"kind":"coins","amount":1,"weight":1}')$$, 'forbidden', 'jogador comum nao mexe no bau');
+select t.ok(jsonb_array_length(public.get_chest()->'prizes') = 1, 'jogador ve os premios do bau e as chances');
 reset role;
 
 -- ------------------------------------------------------------ randomness

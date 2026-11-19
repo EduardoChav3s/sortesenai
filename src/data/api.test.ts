@@ -21,6 +21,33 @@ test('a database error code becomes an ApiError with the same code', async () =>
   expect((err as ApiError).code).toBe('insufficient_coins');
 });
 
+test('chat: pictures, offered cards and avatars come back as links, numbers as numbers', async () => {
+  const author = { id: 'u1', nickname: 'bia', avatar_url: 'u1/eu.webp', avatar_card: null, title_name: null, level: 3 };
+  const { rpc } = fakeRpc({
+    get_chat: {
+      data: [
+        { id: 7, kind: 'image', body: 'olha', image_path: 'u1/foto.webp', created_at: '2026-11-19T10:00:00Z', author, card: null, price: null, to: null, amount: null, status: null, buyer: null, available: false, bids: null },
+        { id: 8, kind: 'offer', body: null, image_path: null, created_at: '2026-11-19T10:01:00Z', author, card: { ...dbCard, image_path: 'c1.webp' }, price: '200', to: null, amount: null, status: 'open', buyer: null, available: true,
+          bids: [{ id: 3, status: 'open', coins: '50', created_at: '2026-11-19T10:02:00Z', bidder: author, card: null }] },
+      ],
+    },
+  });
+  const signed: string[] = [];
+  const sign = async (bucket: string, paths: string[]) => (signed.push(`${bucket}:${paths.join(',')}`), Object.fromEntries(paths.map((p) => [p, `https://s/${bucket}/${p}`])));
+  const [pic, offer] = await createApi(rpc, sign).getChat();
+  expect(pic.image_url).toBe('https://s/chat/u1/foto.webp');
+  expect(pic.author.avatar_url).toBe('https://s/profile/u1/eu.webp');
+  expect(offer.card?.image_url).toBe('https://s/cards/c1.webp');
+  expect(offer.price).toBe(200);
+  expect(offer.bids[0].coins).toBe(50);
+});
+
+test('too many chat messages in a row becomes code slow_down', async () => {
+  const { rpc } = fakeRpc({ chat_send: { error: { message: 'slow_down' } } });
+  const err = (await createApi(rpc).chatSend('oi', null).catch((e) => e)) as ApiError;
+  expect(err.code).toBe('slow_down');
+});
+
 test('an unexpected database error becomes code unknown', async () => {
   const { rpc } = fakeRpc({ pull: { error: { message: 'connection reset' } } });
   const err = (await createApi(rpc).pull().catch((e) => e)) as ApiError;
@@ -332,4 +359,14 @@ test('giving or taking admin calls admin_set_role with the right argument names'
   const r = await createApi(rpc).adminSetRole('u2', 'admin');
   expect(calls).toEqual([{ fn: 'admin_set_role', args: { p_user: 'u2', p_role: 'admin' } }]);
   expect(r.role).toBe('admin');
+});
+
+test('reel cards come in full with their photo links', async () => {
+  const { rpc, calls } = fakeRpc({ get_reel_cards: { data: [{ ...dbCard, image_path: 'g.webp' }, { ...dbCard, id: 'c2', image_path: null }] } });
+  const sign = async (_b: string, paths: string[]) => Object.fromEntries(paths.map((p) => [p, `https://signed/${p}`]));
+  const cards = await createApi(rpc, sign).reelCards();
+  expect(calls).toEqual([{ fn: 'get_reel_cards', args: undefined }]);
+  expect(cards[0].title).toBe('O grampeador');
+  expect(cards[0].image_url).toBe('https://signed/g.webp');
+  expect(cards[1].image_url).toBeNull();
 });

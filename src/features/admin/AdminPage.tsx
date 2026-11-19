@@ -7,11 +7,12 @@ import { isApiError } from '@/data/errors';
 import { COLLECTION } from '@/design/sample';
 import { formatCoins, formatOdds } from '@/lib/format';
 import { rarityTier, TIER_LABEL } from '@/lib/rarity';
-import { isLive, playerChip, useAdminActions, useAdminCards, useAdminPlayers, useAdminSuggestions, useMyProfile, useRole } from '@/data/live';
+import { isLive, playerChip, useAdminActions, useAdminCards, useAdminLive, useAdminPlayers, useAdminSuggestions, useMyProfile, useRole } from '@/data/live';
 import { IdeasTab } from './IdeasTab';
 import { MusicTab } from './MusicTab';
 import { GameTab } from './GameTab';
 import { ShopTab } from './ShopTab';
+import { ArtifactsTab } from './ArtifactsTab';
 import type { AdminPlayer } from '@/data/api';
 import type { CardContent } from '@/data/types';
 import { coinChange, type CoinMode } from './coinChange';
@@ -22,7 +23,7 @@ const SAMPLE_PLAYERS: AdminPlayer[] = [
   { id: 'p1', nickname: 'duda', email: 'duda@exemplo.com', avatar_url: null, coins: 12_480, role: 'admin', banned: false, cards_owned: 31 },
   { id: 'p2', nickname: 'ana', email: 'ana@exemplo.com', avatar_url: null, coins: 4_120, role: 'player', banned: false, cards_owned: 12 },
 ];
-const TABS = ['Cartas', 'Ideias', 'Jogadores', 'Jogo', 'Loja', 'Músicas'] as const;
+const TABS = ['Cartas', 'Ideias', 'Jogadores', 'Jogo', 'Loja', 'Artefatos', 'Músicas'] as const;
 type Tab = (typeof TABS)[number];
 
 /** Object url for a picked file, freed when it changes. */
@@ -451,6 +452,8 @@ export function AdminPage() {
   const role = useRole();
   const [tab, setTab] = useState<Tab>('Cartas');
   const newIdeas = useAdminSuggestions('pending').data?.length ?? 0;
+  const myId = useMyProfile().data?.profile.id;
+  const live = useAdminLive(!isLive || role.data === 'admin', myId);
   if (isLive && role.isLoading) return <p className="page-sub">Conferindo permissão…</p>;
   if (isLive && role.data !== 'admin')
     return (
@@ -469,7 +472,12 @@ export function AdminPage() {
           </button>
         ))}
       </div>
-      {tab === 'Cartas' ? <CardsTab /> : tab === 'Ideias' ? <IdeasTab /> : tab === 'Jogadores' ? <PlayersTab /> : tab === 'Jogo' ? <GameTab /> : tab === 'Loja' ? <ShopTab /> : <MusicTab />}
+      <p className={s.liveBar} data-status={live.status} aria-live="polite">
+        <span className={s.liveDot} aria-hidden="true" />
+        {live.status === 'live' ? 'Ao vivo: mudanças de outros admins aparecem na hora.' : live.status === 'connecting' ? 'Conectando ao vivo…' : 'Sem conexão ao vivo. As listas se atualizam a cada 20 segundos.'}
+        {live.notice && <strong className={s.liveNotice}>{live.notice}</strong>}
+      </p>
+      {tab === 'Cartas' ? <CardsTab /> : tab === 'Ideias' ? <IdeasTab /> : tab === 'Jogadores' ? <PlayersTab /> : tab === 'Jogo' ? <GameTab /> : tab === 'Loja' ? <ShopTab /> : tab === 'Artefatos' ? <ArtifactsTab /> : <MusicTab />}
     </div>
   );
 }
