@@ -3,11 +3,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { api, removeImage, supabase, uploadImage } from './client';
+import { api, myUserId, removeImage, supabase, uploadImage } from './client';
 import { isLive } from './live';
+import { spreadMs } from '@/lib/spread';
 import { onlineFrom, TYPING_MS, typingNow, type OnlinePlayer } from '@/lib/chatRoom';
 
 export type LiveState = 'connecting' | 'live' | 'off';
+
+/**
+ * True when a chat change can move my coins or cards: I wrote it, it was sent to me, I bought it, or it is my bid.
+ * If my id is not known yet, or the change came without its row, it counts as mine (refresh to be safe).
+ */
+export function touchesMe(payload: { new?: Record<string, unknown>; old?: Record<string, unknown> }, me: string | null): boolean {
+  if (!me) return true;
+  const rows = [payload.new, payload.old].filter((r): r is Record<string, unknown> => !!r && Object.keys(r).length > 0);
+  if (rows.length === 0) return true;
+  return rows.some((r) => r.user_id === me || r.to_user === me || r.buyer === me);
+}
 
 /** The latest messages; a change in the chat tables refetches them (and the wallet and album, since trades move both). */
 export function useChat() {
@@ -17,13 +29,23 @@ export function useChat() {
   useEffect(() => {
     if (!isLive || !supabase) return setStatus('off');
     let timer = 0;
-    const refresh = () => {
+    let mine = false;
+    let me: string | null = null;
+    void myUserId().then((id) => (me = id));
+    // One change reaches every open chat at once. Each player waits a short random time, so the
+    // refreshes reach the server spread out instead of all in the same instant.
+    const refresh = (payload: { new?: Record<string, unknown>; old?: Record<string, unknown> }) => {
+      if (touchesMe(payload, me)) mine = true;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         void qc.invalidateQueries({ queryKey: ['chat'] });
-        void qc.invalidateQueries({ queryKey: ['wallet'] });
-        void qc.invalidateQueries({ queryKey: ['collection'] });
-      }, 120);
+        // coins and cards only move for the players in the deal
+        if (mine) {
+          void qc.invalidateQueries({ queryKey: ['wallet'] });
+          void qc.invalidateQueries({ queryKey: ['collection'] });
+        }
+        mine = false;
+      }, spreadMs());
     };
     const ch = supabase
       .channel('chat-mensagens')
@@ -42,7 +64,7 @@ export function useChat() {
 export function useChatRoom(me: OnlinePlayer | null) {
   const [online, setOnline] = useState<OnlinePlayer[]>([]);
   const [seen, setSeen] = useState<Record<string, { nickname: string; at: number }>>({});
-  const [, tick] = useState(0);
+  const [ticks, tick] = useState(0);
   const channel = useRef<RealtimeChannel | null>(null);
   const lastSent = useRef(0);
   const meKey = me ? `${me.id}|${me.nickname}|${me.avatar_url ?? ''}|${me.level}` : '';
@@ -64,11 +86,14 @@ export function useChatRoom(me: OnlinePlayer | null) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meKey]);
-  // the "typing" line fades on its own
+  // the "typing" line fades on its own: one redraw when the next name gets old (not one every second)
   useEffect(() => {
-    const t = window.setInterval(() => tick((n) => n + 1), 1000);
-    return () => window.clearInterval(t);
-  }, []);
+    const now = Date.now();
+    const ends = Object.values(seen).map((t) => t.at + TYPING_MS).filter((end) => end > now);
+    if (ends.length === 0) return;
+    const t = window.setTimeout(() => tick((n) => n + 1), Math.min(...ends) - now + 50);
+    return () => window.clearTimeout(t);
+  }, [seen, ticks]);
   /** Call while the player types; sends at most one signal every 1.5 s. */
   function typing() {
     const now = Date.now();

@@ -8,6 +8,7 @@ import { rarityTier, TIER_LABEL } from '@/lib/rarity';
 import { supabase } from '@/data/client';
 import { isLive, toFeedRow, useClaimMission, useFeed, useMissions, useWeeklyEvent, type PlayableTrack } from '@/data/live';
 import { pickRandom } from '@/lib/playlist';
+import { spreadMs } from '@/lib/spread';
 import type { RarityTier } from '@/data/types';
 import s from './Extras.module.css';
 
@@ -270,13 +271,18 @@ export function LiveNotice() {
   // New mural posts arrive live; the feed query refetches and the effect below spots the big ones.
   useEffect(() => {
     if (!isLive || !supabase) return;
+    // every open screen hears the same post: wait a short random time so they do not all ask at once,
+    // and several posts close together cost one refresh
+    let timer = 0;
     const ch = supabase
       .channel('mural-ao-vivo')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feed_events' }, () => {
-        void qc.invalidateQueries({ queryKey: ['feed'] });
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => void qc.invalidateQueries({ queryKey: ['feed'] }), spreadMs());
       })
       .subscribe();
     return () => {
+      window.clearTimeout(timer);
       void supabase?.removeChannel(ch);
     };
   }, [qc]);

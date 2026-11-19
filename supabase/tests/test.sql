@@ -1069,6 +1069,41 @@ select t.err($$select public.admin_upsert_chest_prize('{"kind":"coins","amount":
 select t.ok(jsonb_array_length(public.get_chest()->'prizes') = 1, 'jogador ve os premios do bau e as chances');
 reset role;
 
+-- ------------------------------------------------------------ XP counters (performance)
+-- XP is read from app.xp_counts; it must always match counting the rows from scratch.
+create function t.xp_slow(p_user uuid) returns bigint language sql as $$
+  select (select count(*) from public.pulls where user_id = p_user) * 10
+       + (select count(*) from public.inventory where user_id = p_user) * 25
+       + (select count(*) from public.game_sessions where user_id = p_user and finished_at is not null) * 15
+       + (select count(*) from public.coin_transactions where user_id = p_user and reason = 'jogo:slots aposta') * 5
+       + (select count(*) from public.daily_claims where user_id = p_user) * 20
+       + (select count(*) from public.mission_claims where user_id = p_user) * 30
+       + coalesce((select xp_bonus from public.profiles where id = p_user), 0) $$;
+select t.ok(not exists (select 1 from public.profiles p where app.xp(p.id) <> t.xp_slow(p.id)),
+            'XP guardado bate com a contagem completa depois de todos os testes');
+-- rows that move between players, stop counting, or go away in bulk
+do $$
+declare a uuid; b uuid; g uuid;
+begin
+  select id into a from public.profiles order by id limit 1;
+  select id into b from public.profiles order by id offset 1 limit 1;
+  insert into public.game_sessions (user_id, game) values (a, 'memory') returning id into g;
+  perform t.ok(app.xp(a) = t.xp_slow(a), 'jogo aberto nao conta XP');
+  update public.game_sessions set finished_at = now() where id = g;
+  perform t.ok(app.xp(a) = t.xp_slow(a), 'jogo terminado conta XP');
+  update public.game_sessions set user_id = b where id = g;
+  perform t.ok(app.xp(a) = t.xp_slow(a) and app.xp(b) = t.xp_slow(b), 'jogo que muda de dono move o XP');
+  insert into public.coin_transactions (user_id, amount, reason) values (a, -1, 'jogo:slots aposta'), (a, -1, 'outra coisa');
+  update public.coin_transactions set reason = 'outra coisa' where user_id = a and reason = 'jogo:slots aposta';
+  perform t.ok(app.xp(a) = t.xp_slow(a), 'aposta que deixa de ser aposta tira o XP');
+  update public.pulls set user_id = b where user_id = a;
+  perform t.ok(app.xp(a) = t.xp_slow(a) and app.xp(b) = t.xp_slow(b), 'roletadas que mudam de dono movem o XP');
+  delete from public.game_sessions where user_id in (a, b);
+  delete from public.pulls where user_id in (a, b);
+  perform t.ok(app.xp(a) = t.xp_slow(a) and app.xp(b) = t.xp_slow(b), 'apagar em lote tira o XP certo');
+end $$;
+select t.ok(not exists (select 1 from public.profiles p where app.xp(p.id) <> t.xp_slow(p.id)), 'XP de todos continua certo');
+
 -- ------------------------------------------------------------ randomness
 select t.ok((select min(x) >= 0 and max(x) < 1 and abs(avg(x) - 0.5) < 0.02 from (select app.rand() x from generate_series(1, 20000)) r),
             'app.rand uniforme em [0,1)');
